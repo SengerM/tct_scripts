@@ -2,6 +2,7 @@ import PyticularsTCT # https://github.com/SengerM/PyticularsTCT
 import pyvisa
 import TeledyneLeCroyPy # https://github.com/SengerM/TeledyneLeCroyPy
 from keithley.Keithley2470 import Keithley2470SafeForLGADs
+import atexit
 
 class TheSetup:
 	"""This class wraps all the hardware so if there are changes it is easy to adapt."""
@@ -11,6 +12,13 @@ class TheSetup:
 		self._keithley = Keithley2470SafeForLGADs('USB0::1510::9328::04481179::0::INSTR', polarity = 'negative')
 		
 		self._keithley.set_output('on')
+		
+		def at_exit():
+			print('Turning off bias voltage...')
+			self._keithley.set_output('off')
+			print('Turning off laser...')
+			self._tct.laser.off()
+		atexit.register(at_exit)
 	
 	def move_to(self, x=None, y=None, z=None):
 		"""Move the TCT stages to the specified position."""

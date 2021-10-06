@@ -7,23 +7,15 @@ from progressreporting.TelegramProgressReporter import TelegramReporter # https:
 from pathlib import Path
 from plotting_scripts.plot_everything_from_linear_scan import script_core as plot_everything_from_linear_scan
 from TheSetup import TheSetup
-import pandas
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
 
 def script_core(
 		measurement_name: str, 
 		bias_voltage: float,
-		laser_DAC: float,
-		x_start: float, 
-		x_end: float, 
-		y_start: float, 
-		y_end: float, 
-		z_start: float,
-		z_end: float,
-		n_steps: int, 
-		n_triggers: int = 1,
-		acquire_channels = [1,2,3,4],
+		laser_DAC_values: list, # List of DAC values to measure.
+		n_triggers: int = 1, # Number of triggers to acquire at each point.
+		acquire_channels = [1,2,3,4], # List with the numbers of the channels to record from the oscilloscope.
 	):
 	bureaucrat = Bureaucrat(
 		str(Path(f'C:/Users/tct_cms/Desktop/TCT_measurements_data/{measurement_name}')),
@@ -33,44 +25,30 @@ def script_core(
 	
 	the_setup = TheSetup()
 	
-	print('Configuring laser...')
-	the_setup.laser_DAC = laser_DAC
 	the_setup.laser_status = 'on'
-	
-	print('Moving to start position...')
-	the_setup.move_to(
-		x = x_start,
-		y = y_start,
-		z = z_start,
-	)
 	
 	print('Setting bias voltage...')
 	the_setup.bias_voltage = bias_voltage
 	
 	ofile_path = bureaucrat.processed_data_dir_path/Path('measured_data.csv')
 	with open(ofile_path, 'w') as ofile:
-		string = f'n_position,n_trigger,x (m),y (m),z (m),n_channel,Amplitude (V),Noise (V),Rise time (s),Collected charge (V s),Time over noise (s)'
+		string = f'n_DAC,n_trigger,DAC value,x (m),y (m),z (m),n_channel,Amplitude (V),Noise (V),Rise time (s),Collected charge (V s),Time over noise (s)'
 		for pp in TIMES_AT:
 			string += f',t_{pp} (s)'
 		print(string, file = ofile)
 	
-	positions = pandas.DataFrame({
-		'x': list(np.linspace(x_start,x_end,n_steps)),
-		'y': list(np.linspace(y_start,y_end,n_steps)),
-		'z': list(np.linspace(z_start,z_end,n_steps)),
-	})
 	reporter = TelegramReporter(
 		telegram_token = TelegramReportingInformation().token, 
 		telegram_chat_id = TelegramReportingInformation().chat_id,
 	)
-	with reporter.report_for_loop(n_steps*n_triggers, f'{bureaucrat.measurement_name}') as reporter:
+	with reporter.report_for_loop(len(laser_DAC_values)*n_triggers, f'{bureaucrat.measurement_name}') as reporter:
 		with open(ofile_path, 'a') as ofile:
-			for (n_pos, move_to_position) in positions.iterrows():
-				the_setup.move_to(*move_to_position)
+			for n_DAC, DAC in enumerate(laser_DAC_values):
+				the_setup.laser_DAC = int(DAC)
 				sleep(0.1)
 				position = the_setup.position
 				for n in range(n_triggers):
-					print(f'Measuring: n_position={n_pos}, n_trigger={n}...')
+					print(f'Measuring: n_DAC={n_DAC}, n_trigger={n}...')
 					the_setup.wait_for_trigger()
 					signals = {}
 					for n_ch in acquire_channels:
@@ -79,7 +57,7 @@ def script_core(
 							time = raw_data['Time (s)'],
 							samples = raw_data['Amplitude (V)'],
 						)
-						string = f'{n_pos},{n},{position[0]:.6e},{position[1]:.6e},{position[2]:.6e},{n_ch}'
+						string = f'{n_DAC},{n},{the_setup.laser_DAC},{position[0]:.6e},{position[1]:.6e},{position[2]:.6e},{n_ch}'
 						string += f',{signals[n_ch].amplitude:.6e},{signals[n_ch].noise:.6e},{signals[n_ch].rise_time:.6e},{signals[n_ch].collected_charge:.6e},{signals[n_ch].time_over_noise:.6e}'
 						for pp in TIMES_AT:
 							try:
@@ -87,10 +65,10 @@ def script_core(
 							except:
 								string += f',{float("NaN")}'
 						print(string, file = ofile)
-					if np.random.rand() < 20/n_steps/n_triggers:
+					if np.random.rand() < 20/(len(laser_DAC_values)*n_triggers):
 						for n_ch in acquire_channels:
 							fig = grafica.new(
-								title = f'Signal at {n_pos:05d} n_trigg {n} n_ch {n_ch}',
+								title = f'Signal at n_DAC {n_DAC:05d} n_trigger {n} n_ch {n_ch}',
 								subtitle = f'Measurement: {bureaucrat.measurement_name}',
 								xlabel = 'Time (s)',
 								ylabel = 'Amplitude (V)',
@@ -112,33 +90,16 @@ def script_core(
 							grafica.save_unsaved(mkdir=bureaucrat.processed_data_dir_path/Path('some_random_processed_signals_plots'))
 					reporter.update(1)
 	print('Finished measuring! :)')
-	print('Doing plots...')
-	plot_everything_from_linear_scan(directory = bureaucrat.measurement_base_path)
-	print('Finished plotting!')
 
 ########################################################################
 
 if __name__ == '__main__':
 	
-	X_START = 1.2335546874999999e-3 - 200e-6
-	X_STOP = X_START + 2*200e-6
-	Y_FIXED = 9.667763671874999e-3
-	STEP_SIZE = 9e-6
-	
-	Z_FOCUS = 53.34380859375e-3
-	
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
-		bias_voltage = 99,
-		laser_DAC = 0,
-		x_start = X_START,
-		x_end = X_STOP,
-		y_start = Y_FIXED,
-		y_end = Y_FIXED,
-		z_start = Z_FOCUS,
-		z_end = Z_FOCUS,
-		n_steps = int(((X_STOP-X_START)**2)**.5/STEP_SIZE),
-		n_triggers = 4,
-		acquire_channels = [1,2],
+		bias_voltage = 55,
+		laser_DAC_values = np.linspace(0,2222,int(99/2)),
+		n_triggers = 1111,
+		acquire_channels = [1],
 	)
 
