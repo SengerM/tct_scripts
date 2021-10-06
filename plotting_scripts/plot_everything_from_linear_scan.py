@@ -14,7 +14,6 @@ def script_core(directory):
 	
 	data = pandas.read_csv(
 		bureaucrat.processed_by_script_dir_path('linear_scan_many_triggers_per_point.py')/Path('measured_data.csv'),
-		sep = '\t',
 	)
 	
 	n_poss = sorted(set(data['n_position']))

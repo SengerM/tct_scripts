@@ -49,9 +49,9 @@ def script_core(
 	
 	ofile_path = bureaucrat.processed_data_dir_path/Path('measured_data.csv')
 	with open(ofile_path, 'w') as ofile:
-		string = f'n_position\tn_trigger\tx (m)\ty (m)\tz (m)\tn_channel\tAmplitude (V)\tNoise (V)\tRise time (s)\tCollected charge (V s)\tTime over noise (s)'
+		string = f'n_position,n_trigger,x (m),y (m),z (m),n_channel,Amplitude (V),Noise (V),Rise time (s),Collected charge (V s),Time over noise (s)'
 		for pp in TIMES_AT:
-			string += f'\tt_{pp} (s)'
+			string += f',t_{pp} (s)'
 		print(string, file = ofile)
 	
 	x_positions = np.linspace(x_start,x_end,n_steps)
@@ -79,13 +79,13 @@ def script_core(
 							time = raw_data['Time (s)'],
 							samples = raw_data['Amplitude (V)'],
 						)
-						string = f'{n_pos}\t{n}\t{position[0]:.6e}\t{position[1]:.6e}\t{position[2]:.6e}\t{n_ch}'
-						string += f'\t{signals[n_ch].amplitude:.6e}\t{signals[n_ch].noise:.6e}\t{signals[n_ch].rise_time:.6e}\t{signals[n_ch].collected_charge:.6e}\t{signals[n_ch].time_over_noise:.6e}'
+						string = f'{n_pos},{n},{position[0]:.6e},{position[1]:.6e},{position[2]:.6e},{n_ch}'
+						string += f',{signals[n_ch].amplitude:.6e},{signals[n_ch].noise:.6e},{signals[n_ch].rise_time:.6e},{signals[n_ch].collected_charge:.6e},{signals[n_ch].time_over_noise:.6e}'
 						for pp in TIMES_AT:
 							try:
-								string += f'\t{signals[n_ch].find_time_at_rising_edge(pp):.6e}'
+								string += f',{signals[n_ch].find_time_at_rising_edge(pp):.6e}'
 							except:
-								string += f'\t{float("NaN")}'
+								string += f',{float("NaN")}'
 						print(string, file = ofile)
 					if np.random.rand() < 20/n_steps/n_triggers:
 						for n_ch in acquire_channels:
@@ -128,7 +128,7 @@ if __name__ == '__main__':
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		bias_voltage = 99,
-		laser_DAC = 222,
+		laser_DAC = 0,
 		x_start = X_FIXED,
 		x_end = X_FIXED,
 		y_start = Y_START,
