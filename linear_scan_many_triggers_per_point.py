@@ -6,7 +6,6 @@ from data_processing_bureaucrat.Bureaucrat import Bureaucrat, TelegramReportingI
 from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
 from pathlib import Path
 from plotting_scripts.plot_everything_from_linear_scan import script_core as plot_everything_from_linear_scan
-from TheSetup import TheSetup
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
 
@@ -15,6 +14,7 @@ def script_core(
 		bias_voltage: float,
 		laser_DAC: float,
 		positions: list, # This is a list of iterables with 3 floats, each element of the form (x,y,z).
+		the_setup,
 		n_triggers: int = 1,
 		acquire_channels = [1,2,3,4],
 		two_pulses = False,
@@ -24,8 +24,6 @@ def script_core(
 		variables = locals(),
 		new_measurement = True,
 	)
-	
-	the_setup = TheSetup()
 	
 	print('Configuring laser...')
 	the_setup.laser_DAC = laser_DAC
@@ -55,6 +53,25 @@ def script_core(
 					plot_this_trigger = np.random.rand() < 20/(len(positions)*n_triggers)
 					print(f'Measuring: n_position={n_position}, n_trigger={n_trigger}...')
 					the_setup.wait_for_trigger()
+					# Esto es para sacarme de encima el ruido de mierda ---
+					while True:
+						the_setup.wait_for_trigger()
+						try:
+							_raw = the_setup.get_waveform(channel=acquire_channels[0])
+						except Exception as e:
+							print(f'Cannot get data from oscilloscope, reason: {e}')
+							continue
+						_amplitude = np.array(_raw['Amplitude (V)'])
+						_time = np.array(_raw['Time (s)'])
+						# ~ fig = grafica.new()
+						# ~ fig.scatter(x=_time,y=_amplitude)
+						# ~ fig.show()
+						# ~ input('Continue?')
+						samples_where_we_shoud_have_no_signal = _amplitude[(_time<220e-9)|((_time>230e-9)&(_time<320e-9))] # This is highly hardcoded here, from the previous plot!!!
+						_noise = np.std(samples_where_we_shoud_have_no_signal)
+						if _noise < 4e-3:
+							break
+					# -----------------------------------------------------
 					signals = {}
 					for n_ch in acquire_channels:
 						try:
@@ -109,10 +126,14 @@ def script_core(
 	print('Doing plots...')
 	plot_everything_from_linear_scan(directory = bureaucrat.measurement_base_path)
 	print('Finished plotting!')
+	
+	return bureaucrat.measurement_base_path
 
 ########################################################################
 
 if __name__ == '__main__':
+	from TheSetup import TheSetup
+	
 	X_MIDDLE = 1.141396484375e-3
 	Y_MIDDLE = 9.58572265625e-3
 	Z_FOCUS = 51.901474609375e-3
@@ -125,6 +146,7 @@ if __name__ == '__main__':
 	
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
+		the_setup = TheSetup(),
 		bias_voltage = 111,
 		laser_DAC = 1555, # Approximately should be 5 MIPs
 		positions = list(zip(x_positions,y_positions,z_positions)),
