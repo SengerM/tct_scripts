@@ -81,7 +81,7 @@ def script_core(
 							string = f'{n_DAC},{n},{the_setup.laser_DAC},{position[0]},{position[1]},{position[2]},{n_ch},{n_pulse}'
 							string += f',{signal.amplitude},{signal.noise},{signal.rise_time},{signal.collected_charge},{signal.time_over_noise}'
 							for pp in TIMES_AT:
-								string += f',{signal.find_time_at_rising_edge(pp)}'
+								string += f',{signal.time_at_rising_edge(pp)}'
 							print(string, file = ofile)
 							if plot_this_trigger:
 								fig = grafica.new(
@@ -95,8 +95,8 @@ def script_core(
 								for pp in TIMES_AT:
 									try:
 										fig.scatter(
-											[signal.find_time_at_rising_edge(pp)],
-											[signal.signal_at(signal.find_time_at_rising_edge(pp))],
+											[signal.time_at_rising_edge(pp)],
+											[signal.signal_at(signal.time_at_rising_edge(pp))],
 											marker = 'x',
 											linestyle = 'none',
 											label = f'Time at {pp} %',
@@ -112,11 +112,14 @@ def script_core(
 
 if __name__ == '__main__':
 	
+	laser_DAC_values = np.linspace(0,2222,55).astype(int)[::-1]
+	print(laser_DAC_values)
+	
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
-		bias_voltage = 55,
-		laser_DAC_values = np.linspace(0,2222,55).astype(int),
-		n_triggers = 3333,
+		bias_voltage = 111,
+		laser_DAC_values = laser_DAC_values,
+		n_triggers = 1111,
 		acquire_channels = [1],
 		two_pulses = True,
 	)
