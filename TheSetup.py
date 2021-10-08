@@ -14,10 +14,12 @@ class TheSetup:
 		self._keithley.set_output('on')
 		
 		def at_exit():
-			print('Turning off bias voltage...')
+			print('Turning bias voltage off...')
 			self._keithley.set_output('off')
-			print('Turning off laser...')
+			print('Bias voltage is OFF.')
+			print('Turning laser off...')
 			self._tct.laser.off()
+			print('Laser is OFF.')
 		atexit.register(at_exit)
 	
 	def move_to(self, x=None, y=None, z=None):
