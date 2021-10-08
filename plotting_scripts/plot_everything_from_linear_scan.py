@@ -16,16 +16,16 @@ def script_core(directory):
 		bureaucrat.processed_by_script_dir_path('linear_scan_many_triggers_per_point.py')/Path('measured_data.csv'),
 	)
 	
-	n_poss = sorted(set(data['n_position']))
-	distance = [None]*len(n_poss)
-	for n_pos in n_poss:
+	n_position = sorted(set(data['n_position']))
+	distance = [None]*len(n_position)
+	for n_pos in n_position:
 		if n_pos == 0: 
 			distance[n_pos] = 0
 			continue
-		distance[n_pos] = distance[n_pos-1] + np.linalg.norm(data.loc[data['n_position']==n_pos,['x (m)', 'y (m)']].iloc[0]-data.loc[data['n_position']==n_pos-1,['x (m)', 'y (m)']].iloc[0])
+		distance[n_pos] = distance[n_pos-1] + np.linalg.norm(data.loc[data['n_position']==n_pos,['x (m)', 'y (m)', 'z (m)']].iloc[0]-data.loc[data['n_position']==n_pos-1,['x (m)', 'y (m)', 'z (m)']].iloc[0])
 	
 	for column in data:
-		if column in ['n_position', 'n_trigger', 'x (m)', 'y (m)', 'z (m)', 'n_channel', 'n_pulse']:
+		if column in ['n_position', 'n_trigger', 'n_channel', 'n_pulse']:
 			continue
 		for stat in STATISTICAL_QUANTITIES:
 			for package in ['matplotlib', 'plotly']:
@@ -33,7 +33,7 @@ def script_core(directory):
 					title = f'{column[:column.find("(")][:-1]} {stat}',
 					subtitle = f'Data set: {bureaucrat.measurement_name}',
 					xlabel = 'Distance (m)',
-					ylabel = column,
+					ylabel = f'{stat} {column}',
 					package = package,
 				)
 				for ch in sorted(set(data['n_channel'])):
@@ -72,7 +72,7 @@ def script_core(directory):
 		xlabel = 'Distance (m)',
 		ylabel = 'Normalized collected charge',
 	)
-	normalized_collected_charge_df = pandas.DataFrame({'n_position': n_poss})
+	normalized_collected_charge_df = pandas.DataFrame({'n_position': n_position})
 	for ch in sorted(set(data['n_channel'])):
 		normalized_collected_charge_df[f'channel {ch} average'] = data.loc[data['n_channel']==ch, ['n_position','Collected charge (V s)']].groupby(['n_position']).mean()
 		normalized_collected_charge_df[f'channel {ch} std'] = data.loc[data['n_channel']==ch, ['n_position','Collected charge (V s)']].groupby(['n_position']).std()
