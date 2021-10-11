@@ -63,13 +63,9 @@ def script_core(
 							continue
 						_amplitude = np.array(_raw['Amplitude (V)'])
 						_time = np.array(_raw['Time (s)'])
-						# ~ fig = grafica.new()
-						# ~ fig.scatter(x=_time,y=_amplitude)
-						# ~ fig.show()
-						# ~ input('Continue?')
 						samples_where_we_shoud_have_no_signal = _amplitude[(_time<220e-9)|((_time>230e-9)&(_time<320e-9))] # This is highly hardcoded here, from the previous plot!!!
 						_noise = np.std(samples_where_we_shoud_have_no_signal)
-						if _noise < 4e-3:
+						if _noise <= 8e-3:
 							break
 					# -----------------------------------------------------
 					signals = {}
@@ -134,23 +130,23 @@ def script_core(
 if __name__ == '__main__':
 	from TheSetup import TheSetup
 	
-	X_MIDDLE = 1.141396484375e-3
-	Y_MIDDLE = 9.58572265625e-3
-	Z_FOCUS = 51.901474609375e-3
+	X_MIDDLE = -1.4491796875e-3
+	Y_MIDDLE = 9.713476562499999e-3
+	Z_FOCUS = 52.192451171875e-3
 	STEP_SIZE = 1e-6
 	SWEEP_LENGTH = 250e-6
 	
-	x_positions = np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE)) + X_MIDDLE
-	y_positions = x_positions*0 + Y_MIDDLE
-	z_positions = x_positions*0 + Z_FOCUS
+	y_positions = np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE)) + Y_MIDDLE
+	x_positions = y_positions*0 + X_MIDDLE
+	z_positions = y_positions*0 + Z_FOCUS
 	
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
-		bias_voltage = 111,
-		laser_DAC = 1555, # Approximately should be 5 MIPs
+		bias_voltage = 99,
+		laser_DAC = 2000,
 		positions = list(zip(x_positions,y_positions,z_positions)),
-		n_triggers = 555,
+		n_triggers = 444,
 		acquire_channels = [1,2],
 		two_pulses = True,
 	)

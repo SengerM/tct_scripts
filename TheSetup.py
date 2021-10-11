@@ -74,14 +74,26 @@ class TheSetup:
 	def current_compliance(self, amperes):
 		"""Sets the current compliance."""
 		self._keithley.current_limit = amperes
+	
+	def configure_oscilloscope_for_two_pulses(self):
+		"""Configures the horizontal scale and trigger of the oscilloscope to properly acquire two pulses."""
+		self._osc.set_trig_source('ext')
+		self._osc.set_trig_level('ext', -50e-3)
+		self._osc.set_trig_coupling('ext', 'DC')
+		self._osc.set_trig_slope('ext', 'negative')
+		self._osc.set_tdiv('20ns')
+		self._osc.set_trig_delay(-20e-9)
 
 if __name__ == '__main__':
 	import time
 	
 	the_setup = TheSetup()
 	
+	the_setup.laser_status = 'on'
+	the_setup.laser_DAC = 1555
+	print('Seting vias boltage;;;')
+	the_setup.bias_voltage = 99
 	print(f'Bias voltage = {the_setup.bias_voltage} V')
-	for v in [11,22,11]:
-		the_setup.bias_voltage = v
-		print(f'Bias voltage = {the_setup.bias_voltage} V')
-		time.sleep(1)
+	the_setup.configure_oscilloscope_for_two_pulses()
+	
+	input('Exit?')

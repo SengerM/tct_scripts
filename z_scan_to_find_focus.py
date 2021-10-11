@@ -6,9 +6,9 @@ from pathlib import Path
 import grafica # https://github.com/SengerM/grafica
 from data_processing_bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/data_processing_bureaucrat
 
-Z_MIDDLE = 51.501474609375e-3
-STEP_SIZE = 10e-6
-SWEEP_LENGTH = 8e-3
+Z_MIDDLE = 51.912392578125e-3
+STEP_SIZE = 5e-6
+SWEEP_LENGTH = 8e-3/8
 CHANNEL = 1
 
 setup = TheSetup()
@@ -18,16 +18,15 @@ z_positions = np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_S
 x_positions = z_positions*0 + current_position[0]
 y_positions = z_positions*0 + current_position[1]
 
-measurement_base_path = Path('C:/Users/tct_cms/Desktop/TCT_measurements_data/20211008100500_#57_find_focus')
-# ~ measurement_base_path = linear_scan(
-	# ~ measurement_name = input('Measurement name? ').replace(' ', '_'),
-	# ~ the_setup = setup,
-	# ~ bias_voltage = 111,
-	# ~ laser_DAC = 0,
-	# ~ positions = list(zip(x_positions,y_positions,z_positions)),
-	# ~ n_triggers = 4,
-	# ~ acquire_channels = [CHANNEL],
-# ~ )
+measurement_base_path = linear_scan(
+	measurement_name = input('Measurement name? ').replace(' ', '_'),
+	the_setup = setup,
+	bias_voltage = 99,
+	laser_DAC = 1100,
+	positions = list(zip(x_positions,y_positions,z_positions)),
+	n_triggers = 2,
+	acquire_channels = [CHANNEL],
+)
 
 bureaucrat = Bureaucrat(
 		str(Path(measurement_base_path)),
