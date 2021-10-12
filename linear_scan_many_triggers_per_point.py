@@ -25,6 +25,9 @@ def script_core(
 		new_measurement = True,
 	)
 	
+	if two_pulses:
+		the_setup.configure_oscilloscope_for_two_pulses()
+	
 	print('Configuring laser...')
 	the_setup.laser_DAC = laser_DAC
 	the_setup.laser_status = 'on'
@@ -51,7 +54,7 @@ def script_core(
 				position = the_setup.position
 				for n_trigger in range(n_triggers):
 					plot_this_trigger = np.random.rand() < 20/(len(positions)*n_triggers)
-					print(f'Measuring: n_position={n_position}, n_trigger={n_trigger}...')
+					print(f'Measuring: n_position={n_position}/{len(positions)}, n_trigger={n_trigger}/{n_triggers}...')
 					the_setup.wait_for_trigger()
 					# Esto es para sacarme de encima el ruido de mierda ---
 					while True:
@@ -63,9 +66,9 @@ def script_core(
 							continue
 						_amplitude = np.array(_raw['Amplitude (V)'])
 						_time = np.array(_raw['Time (s)'])
-						samples_where_we_shoud_have_no_signal = _amplitude[(_time<220e-9)|((_time>230e-9)&(_time<320e-9))] # This is highly hardcoded here, from the previous plot!!!
+						samples_where_we_shoud_have_no_signal = _amplitude[(_time<220e-9)|((_time>235e-9)&(_time<320e-9))] # This is highly hardcoded here, from the previous plot!!!
 						_noise = np.std(samples_where_we_shoud_have_no_signal)
-						if _noise <= 8e-3:
+						if _noise <= 6e-3:
 							break
 					# -----------------------------------------------------
 					signals = {}
@@ -130,8 +133,8 @@ def script_core(
 if __name__ == '__main__':
 	from TheSetup import TheSetup
 	
-	X_MIDDLE = -1.4491796875e-3
-	Y_MIDDLE = 9.713476562499999e-3
+	X_MIDDLE = 2.086611328125e-3
+	Y_MIDDLE = 9.569970703125e-3
 	Z_FOCUS = 52.192451171875e-3
 	STEP_SIZE = 1e-6
 	SWEEP_LENGTH = 250e-6
