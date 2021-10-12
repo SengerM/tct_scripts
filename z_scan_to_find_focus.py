@@ -6,9 +6,9 @@ from pathlib import Path
 import grafica # https://github.com/SengerM/grafica
 from data_processing_bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/data_processing_bureaucrat
 
-Z_MIDDLE = 51.912392578125e-3
-STEP_SIZE = 5e-6
-SWEEP_LENGTH = 8e-3/8
+Z_MIDDLE = 52.2e-3
+STEP_SIZE = 11e-6
+SWEEP_LENGTH = 8e-3/7
 CHANNEL = 1
 
 setup = TheSetup()
@@ -24,7 +24,7 @@ measurement_base_path = linear_scan(
 	bias_voltage = 99,
 	laser_DAC = 1100,
 	positions = list(zip(x_positions,y_positions,z_positions)),
-	n_triggers = 2,
+	n_triggers = 111,
 	acquire_channels = [CHANNEL],
 )
 
