@@ -56,21 +56,6 @@ def script_core(
 					plot_this_trigger = np.random.rand() < 20/(len(positions)*n_triggers)
 					print(f'Measuring: n_position={n_position}/{len(positions)-1}, n_trigger={n_trigger}/{n_triggers-1}...')
 					the_setup.wait_for_trigger()
-					# Esto es para sacarme de encima el ruido de mierda ---
-					while True:
-						the_setup.wait_for_trigger()
-						try:
-							_raw = the_setup.get_waveform(channel=acquire_channels[0])
-						except Exception as e:
-							print(f'Cannot get data from oscilloscope, reason: {e}')
-							continue
-						_amplitude = np.array(_raw['Amplitude (V)'])
-						_time = np.array(_raw['Time (s)'])
-						samples_where_we_shoud_have_no_signal = _amplitude[(_time<220e-9)|((_time>235e-9)&(_time<320e-9))] # This is highly hardcoded here, from the previous plot!!!
-						_noise = np.std(samples_where_we_shoud_have_no_signal)
-						if _noise <= 6e-3:
-							break
-					# -----------------------------------------------------
 					signals = {}
 					for n_ch in acquire_channels:
 						try:
