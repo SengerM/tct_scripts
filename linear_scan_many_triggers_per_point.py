@@ -54,7 +54,7 @@ def script_core(
 				position = the_setup.position
 				for n_trigger in range(n_triggers):
 					plot_this_trigger = np.random.rand() < 20/(len(positions)*n_triggers)
-					print(f'Measuring: n_position={n_position}/{len(positions)}, n_trigger={n_trigger}/{n_triggers}...')
+					print(f'Measuring: n_position={n_position}/{len(positions)-1}, n_trigger={n_trigger}/{n_triggers-1}...')
 					the_setup.wait_for_trigger()
 					# Esto es para sacarme de encima el ruido de mierda ---
 					while True:
