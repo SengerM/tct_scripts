@@ -121,11 +121,11 @@ def script_core(
 if __name__ == '__main__':
 	from TheSetup import TheSetup
 	
-	X_MIDDLE = -0.26568359374999995e-3
-	Y_MIDDLE = 9.254863281250001e-3
+	X_MIDDLE = -0.427548828125e-3
+	Y_MIDDLE = 9.500849609375e-3
 	Z_FOCUS = 52.2112e-3
-	STEP_SIZE = 2e-6
-	SWEEP_LENGTH_X = 2*80e-6
+	STEP_SIZE = 3e-6
+	SWEEP_LENGTH_X = 2*100e-6
 	SWEEP_LENGTH_Y = 200e-6
 	
 	x_positions = np.linspace(-SWEEP_LENGTH_X/2,SWEEP_LENGTH_X/2,int(SWEEP_LENGTH_X/STEP_SIZE)) + X_MIDDLE

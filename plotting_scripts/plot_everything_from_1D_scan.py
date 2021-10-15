@@ -13,7 +13,7 @@ def script_core(directory):
 	)
 	
 	data_df = pandas.read_csv(
-		bureaucrat.processed_by_script_dir_path('linear_scan_many_triggers_per_point.py')/Path('measured_data.csv'),
+		bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('measured_data.csv'),
 	)
 	
 	

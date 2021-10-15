@@ -11,9 +11,9 @@ def script_core(directory):
 	)
 	
 	try:
-		data_df = pandas.read_feather(bureaucrat.processed_by_script_dir_path('2D_scan.py')/Path('measured_data.fd'))
+		data_df = pandas.read_feather(bureaucrat.processed_by_script_dir_path('scan_2D.py')/Path('measured_data.fd'))
 	except FileNotFoundError:
-		data_df = pandas.read_csv(bureaucrat.processed_by_script_dir_path('2D_scan.py')/Path('measured_data.csv'))
+		data_df = pandas.read_csv(bureaucrat.processed_by_script_dir_path('scan_2D.py')/Path('measured_data.csv'))
 	
 	n_positions_1 = [n for n in range(max(data_df['n_position_1']))]
 	n_positions_2 = [n for n in range(max(data_df['n_position_2']))]

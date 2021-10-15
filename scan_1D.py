@@ -5,7 +5,7 @@ from lgadtools.LGADSignal import LGADSignal # https://github.com/SengerM/lgadtoo
 from data_processing_bureaucrat.Bureaucrat import Bureaucrat, TelegramReportingInformation # https://github.com/SengerM/data_processing_bureaucrat
 from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
 from pathlib import Path
-from plotting_scripts.plot_everything_from_linear_scan import script_core as plot_everything_from_linear_scan
+from plotting_scripts.plot_everything_from_1D_scan import script_core as plot_everything_from_1D_scan
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
 
@@ -108,7 +108,7 @@ def script_core(
 					reporter.update(1)
 	print('Finished measuring! :)')
 	print('Doing plots...')
-	plot_everything_from_linear_scan(directory = bureaucrat.measurement_base_path)
+	plot_everything_from_1D_scan(directory = bureaucrat.measurement_base_path)
 	print('Finished plotting!')
 	
 	return bureaucrat.measurement_base_path
@@ -118,9 +118,9 @@ def script_core(
 if __name__ == '__main__':
 	from TheSetup import TheSetup
 	
-	X_MIDDLE = 2.086611328125e-3
-	Y_MIDDLE = 9.569970703125e-3
-	Z_FOCUS = 52.192451171875e-3
+	X_MIDDLE = -419e-6
+	Y_MIDDLE = 9.5085235e-3
+	Z_FOCUS = 52.24e-3
 	STEP_SIZE = 1e-6
 	SWEEP_LENGTH = 250e-6
 	
@@ -134,7 +134,7 @@ if __name__ == '__main__':
 		bias_voltage = 99,
 		laser_DAC = 2000,
 		positions = list(zip(x_positions,y_positions,z_positions)),
-		n_triggers = 444,
+		n_triggers = 555,
 		acquire_channels = [1,2],
 		two_pulses = True,
 	)
