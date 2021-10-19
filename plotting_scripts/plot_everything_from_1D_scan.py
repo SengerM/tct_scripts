@@ -33,7 +33,7 @@ def script_core(directory):
 	).reset_index()
 	
 	for column in data_df:
-		if column in {'n_position', 'n_trigger', 'n_channel', 'n_pulse'}:
+		if column in {'n_position', 'n_trigger', 'n_channel', 'n_pulse', 'When'}:
 			continue
 		# For each column, plot the mean and the std as scatter plots ---
 		for n_pulse in sorted(set(data_df['n_pulse'])):

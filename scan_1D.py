@@ -6,6 +6,7 @@ from data_processing_bureaucrat.Bureaucrat import Bureaucrat, TelegramReportingI
 from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
 from pathlib import Path
 from plotting_scripts.plot_everything_from_1D_scan import script_core as plot_everything_from_1D_scan
+import datetime
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
 
@@ -37,7 +38,7 @@ def script_core(
 	
 	ofile_path = bureaucrat.processed_data_dir_path/Path('measured_data.csv')
 	with open(ofile_path, 'w') as ofile:
-		string = f'n_position,n_trigger,x (m),y (m),z (m),n_channel,n_pulse,Amplitude (V),Noise (V),Rise time (s),Collected charge (V s),Time over noise (s)'
+		string = f'When,n_position,n_trigger,n_channel,n_pulse,x (m),y (m),z (m),Amplitude (V),Noise (V),Rise time (s),Collected charge (V s),Time over noise (s)'
 		for pp in TIMES_AT:
 			string += f',t_{pp} (s)'
 		print(string, file = ofile)
@@ -78,8 +79,8 @@ def script_core(
 								time = raw_data_each_pulse[n_pulse]['Time (s)'],
 								samples = raw_data_each_pulse[n_pulse]['Amplitude (V)'],
 							)
-							string = f'{n_position},{n_trigger},{position[0]},{position[1]},{position[2]},{n_ch},{n_pulse}'
-							string += f',{signal.amplitude},{signal.noise},{signal.rise_time},{signal.collected_charge},{signal.time_over_noise}'
+							string = f'{datetime.datetime.now()},{n_position},{n_trigger},{n_ch},{n_pulse}'
+							string += f',{position[0]},{position[1]},{position[2]},{signal.amplitude},{signal.noise},{signal.rise_time},{signal.collected_charge},{signal.time_over_noise}'
 							for pp in TIMES_AT:
 								string += f',{signal.time_at_rising_edge(pp)}'
 							print(string, file = ofile)
@@ -123,9 +124,9 @@ def script_core(
 if __name__ == '__main__':
 	from TheSetup import TheSetup
 	
-	X_MIDDLE = -419e-6
-	Y_MIDDLE = 9.5085235e-3
-	Z_FOCUS = 52.24e-3
+	X_MIDDLE = -911.62e-6
+	Y_MIDDLE = 9.567177734374999e-3
+	Z_FOCUS = 52.32e-3
 	STEP_SIZE = 1e-6
 	SWEEP_LENGTH = 250e-6
 	
@@ -136,7 +137,7 @@ if __name__ == '__main__':
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
-		bias_voltage = 99,
+		bias_voltage = 200,
 		laser_DAC = 2000,
 		positions = list(zip(x_positions,y_positions,z_positions)),
 		n_triggers = 555,
