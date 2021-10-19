@@ -111,6 +111,11 @@ def script_core(
 	plot_everything_from_1D_scan(directory = bureaucrat.measurement_base_path)
 	print('Finished plotting!')
 	
+	print('Converting data to feather format...')
+	csv_path = bureaucrat.processed_data_dir_path/Path('measured_data.csv')
+	pandas.read_csv(csv_path).to_feather(bureaucrat.processed_data_dir_path/Path('measured_data.fd'))
+	csv_path.unlink()
+	
 	return bureaucrat.measurement_base_path
 
 ########################################################################
