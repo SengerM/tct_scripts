@@ -82,9 +82,9 @@ def script_core(
 							samples = raw_data_each_pulse[n_pulse]['Amplitude (V)'],
 						)
 						# Because measuring bias voltage and current takes a long time, I do the following ---
-						measure_bias_IV_in_thi_iteration = False
+						measure_bias_IV_in_this_iteration = False
 						if 'last_time_bias_IV_was_measured' not in locals() or (datetime.datetime.now()-last_time_bias_IV_was_measured).seconds >= 11:
-							measure_bias_IV_in_thi_iteration = True
+							measure_bias_IV_in_this_iteration = True
 							last_time_bias_IV_was_measured = datetime.datetime.now()
 						measured_data_dict = {
 							'n_position': n_position,
@@ -95,8 +95,8 @@ def script_core(
 							'y (m)': position[1],
 							'z (m)': position[2],
 							'When': datetime.datetime.now(),
-							'Bias voltage (V)': the_setup.bias_voltage if measure_bias_IV_in_thi_iteration else float('NaN'),
-							'Bias current (A)': the_setup.bias_current if measure_bias_IV_in_thi_iteration else float('NaN'),
+							'Bias voltage (V)': the_setup.bias_voltage if measure_bias_IV_in_this_iteration else float('NaN'),
+							'Bias current (A)': the_setup.bias_current if measure_bias_IV_in_this_iteration else float('NaN'),
 							'Laser DAC': the_setup.laser_DAC,
 							'Amplitude (V)': signal.amplitude,
 							'Noise (V)': signal.noise,
