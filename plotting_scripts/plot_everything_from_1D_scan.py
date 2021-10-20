@@ -12,8 +12,8 @@ def script_core(directory):
 		variables = locals(),
 	)
 	
-	data_df = pandas.read_csv(
-		bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('measured_data.csv'),
+	data_df = pandas.read_feather(
+		bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('measured_data.fd'),
 	)
 	
 	
