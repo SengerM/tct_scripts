@@ -28,6 +28,7 @@ def script_core(
 	)
 	
 	data_file_path = bureaucrat.processed_data_dir_path/Path('measured_data.fd')
+	waveforms_data_file_path = bureaucrat.processed_data_dir_path/Path('average_waveforms.fd')
 	
 	if two_pulses:
 		the_setup.configure_oscilloscope_for_two_pulses()
@@ -50,16 +51,18 @@ def script_core(
 		telegram_token = TelegramReportingInformation().token, 
 		telegram_chat_id = TelegramReportingInformation().chat_id,
 	)
+	average_waveforms_df = pandas.DataFrame(columns={'n_position','n_channel','n_pulse','Amplitude mean (V)','Amplitude std (V)','Time (s)'})
+	average_waveforms_df.set_index(['n_position','n_channel','n_pulse'], inplace=True)
 	with reporter.report_for_loop(len(positions)*n_triggers, f'{bureaucrat.measurement_name}') as reporter:
 		for n_position, target_position in enumerate(positions):
 			the_setup.move_to(*target_position)
 			sleep(0.1)
 			position = the_setup.position
+			this_position_signals_df = pandas.DataFrame(columns={'n_channel','n_pulse','Samples (V)','Time (s)'})
 			for n_trigger in range(n_triggers):
 				plot_this_trigger = np.random.rand() < 20/(len(positions)*n_triggers)
 				print(f'Measuring: n_position={n_position}/{len(positions)-1}, n_trigger={n_trigger}/{n_triggers-1}...')
 				the_setup.wait_for_trigger()
-				signals = {}
 				for n_channel in acquire_channels:
 					try:
 						raw_data = the_setup.get_waveform(channel = n_channel)
@@ -107,8 +110,22 @@ def script_core(
 						for pp in TIMES_AT:
 							measured_data_dict[f't_{pp} (s)'] = signal.time_at_rising_edge(pp)
 						measured_data_df = measured_data_df.append(measured_data_dict, ignore_index = True)
+						
+						this_position_signals_df = this_position_signals_df.append(
+							pandas.DataFrame(
+								{
+									'n_channel': n_channel,
+									'n_pulse': n_pulse,
+									'Samples (V)': list(signal.samples),
+									'Time (s)': list(signal.time),
+								}
+							),
+							ignore_index = True,
+						)
+						# Save data and do some plots ---
 						if 'last_time_data_was_saved' not in locals() or (datetime.datetime.now()-last_time_data_was_saved).seconds >= 30:
 							measured_data_df.reset_index().to_feather(data_file_path)
+							average_waveforms_df.reset_index().to_feather(waveforms_data_file_path)
 							last_time_data_was_saved = datetime.datetime.now()
 						if plot_this_trigger:
 							fig = grafica.new(
@@ -133,7 +150,19 @@ def script_core(
 									print(f'Cannot plot "times at X %", reason {e}.')
 							grafica.save_unsaved(mkdir=bureaucrat.processed_data_dir_path/Path('some_random_processed_signals_plots'))
 				reporter.update(1)
+			
+			this_position_mean_df = this_position_signals_df.groupby(['n_channel','n_pulse','Time (s)']).mean()
+			this_position_mean_df.rename(columns={'Samples (V)': 'Amplitude mean (V)'}, inplace=True)
+			this_position_mean_df['Amplitude std (V)'] = this_position_signals_df.groupby(['n_channel','n_pulse','Time (s)']).std()['Samples (V)']
+			this_position_mean_df['n_position'] = n_position
+			this_position_mean_df.reset_index(inplace=True)
+			this_position_mean_df.set_index(['n_position','n_channel','n_pulse'], inplace=True)
+			average_waveforms_df = average_waveforms_df.append(
+				this_position_mean_df,
+			)
+	# Save remaining data ---
 	measured_data_df.reset_index().to_feather(data_file_path)
+	average_waveforms_df.reset_index().to_feather(waveforms_data_file_path)
 	print('Finished measuring! :)')
 	print('Doing plots...')
 	plot_everything_from_1D_scan(directory = bureaucrat.measurement_base_path)
@@ -146,20 +175,20 @@ def script_core(
 if __name__ == '__main__':
 	from TheSetup import TheSetup
 	
-	X_MIDDLE = -911.62e-6
-	Y_MIDDLE = 9.567177734374999e-3
-	Z_FOCUS = 52.32e-3
-	STEP_SIZE = 5e-6
-	SWEEP_LENGTH = 250e-6
+	X_MIDDLE = 2.072e-3+5e-6
+	Y_MIDDLE = 10.35585e-3
+	Z_FOCUS = .05214425
+	STEP_SIZE = 11e-6
+	SWEEP_LENGTH = 333e-6
 	
-	y_positions = np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE)) + Y_MIDDLE
-	x_positions = y_positions*0 + X_MIDDLE
-	z_positions = y_positions*0 + Z_FOCUS
+	x_positions = X_MIDDLE + np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))
+	y_positions = Y_MIDDLE + x_positions*0
+	z_positions = Z_FOCUS + x_positions*0
 	
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
-		bias_voltage = 200,
+		bias_voltage = 99,
 		laser_DAC = 2000,
 		positions = list(zip(x_positions,y_positions,z_positions)),
 		n_triggers = 2,
