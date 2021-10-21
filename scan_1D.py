@@ -167,7 +167,7 @@ def script_core(
 							ignore_index = True,
 						)
 						# Save data and do some plots ---
-						if 'last_time_data_was_saved' not in locals() or (datetime.datetime.now()-last_time_data_was_saved).seconds >= 30:
+						if 'last_time_data_was_saved' not in locals() or (datetime.datetime.now()-last_time_data_was_saved).seconds >= 60*5:
 							measured_data_df = measured_data_df_dumper.dump_to_disk(measured_data_df)
 							average_waveforms_df = waveforms_df_dumper.dump_to_disk(average_waveforms_df)
 							last_time_data_was_saved = datetime.datetime.now()
@@ -207,11 +207,11 @@ def script_core(
 	# Save remaining data ---
 	measured_data_df = measured_data_df_dumper.dump_to_disk(measured_data_df)
 	average_waveforms_df = waveforms_df_dumper.dump_to_disk(average_waveforms_df)
+	print('Finished measuring! :)')
 	
+	print('Merging dumped datagrames...')
 	measured_data_df_dumper.end()
 	waveforms_df_dumper.end()
-	
-	print('Finished measuring! :)')
 	print('Doing plots...')
 	plot_everything_from_1D_scan(directory = bureaucrat.measurement_base_path)
 	print('Finished plotting!')
@@ -226,7 +226,7 @@ if __name__ == '__main__':
 	X_MIDDLE = 2.072e-3+5e-6
 	Y_MIDDLE = 10.35585e-3
 	Z_FOCUS = .05214425
-	STEP_SIZE = 11e-6
+	STEP_SIZE = 1e-6
 	SWEEP_LENGTH = 333e-6
 	
 	x_positions = X_MIDDLE + np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))
@@ -236,10 +236,10 @@ if __name__ == '__main__':
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
-		bias_voltage = 99,
+		bias_voltage = 55,
 		laser_DAC = 2000,
 		positions = list(zip(x_positions,y_positions,z_positions)),
-		n_triggers = 2,
+		n_triggers = 222,
 		acquire_channels = [1,2],
 		two_pulses = True,
 	)
