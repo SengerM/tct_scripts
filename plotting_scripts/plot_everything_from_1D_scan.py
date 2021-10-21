@@ -5,6 +5,7 @@ import grafica
 import plotly.express as px
 import plotly.io as pio
 import pandas
+from grafica.plotly_utils.utils import line
 
 def script_core(directory):
 	bureaucrat = Bureaucrat(
@@ -165,6 +166,20 @@ def script_core(directory):
 		ofilepath = bureaucrat.processed_data_dir_path/Path('histograms')/Path(figure_title+'.html')
 		ofilepath.parent.absolute().mkdir(parents=True, exist_ok=True)
 		pio.write_html(fig, file=str(ofilepath))
+	
+	average_waveforms_df = pandas.read_feather(bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('average_waveforms.fd'))
+	fig = line(
+		title = f'Waveforms<br><sup>Measurement {bureaucrat.measurement_name}</sup>',
+		data_frame = average_waveforms_df,
+		x = 'Time (s)',
+		y = 'Amplitude mean (V)',
+		error_y = 'Amplitude std (V)',
+		error_y_mode = 'bands',
+		color = 'n_pulse',
+		animation_frame = 'n_position',
+		facet_row = 'n_channel',
+	)
+	fig.write_html(str(bureaucrat.processed_data_dir_path/Path('waveforms.html')), include_plotlyjs='cdn')
 	
 if __name__ == '__main__':
 	import argparse
