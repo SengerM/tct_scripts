@@ -64,6 +64,7 @@ def script_core(
 		n_triggers: int = 1,
 		acquire_channels = [1,2,3,4],
 		two_pulses = False,
+		external_Telegram_reporter=None,
 	):
 	bureaucrat = Bureaucrat(
 		str(Path(f'C:/Users/tct_cms/Desktop/TCT_measurements_data/{measurement_name}')),
@@ -194,6 +195,10 @@ def script_core(
 									print(f'Cannot plot "times at X %", reason {e}.')
 							grafica.save_unsaved(mkdir=bureaucrat.processed_data_dir_path/Path('some_random_processed_signals_plots'))
 				reporter.update(1)
+				try:
+					external_Telegram_reporter.update(1)
+				except:
+					pass
 			
 			this_position_mean_df = this_position_signals_df.groupby(['n_channel','n_pulse','Time (s)']).mean()
 			this_position_mean_df.rename(columns={'Samples (V)': 'Amplitude mean (V)'}, inplace=True)
