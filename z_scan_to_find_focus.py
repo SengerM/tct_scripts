@@ -34,7 +34,7 @@ bureaucrat = Bureaucrat(
 		new_measurement = False,
 	)
 
-data_df = pandas.read_csv(bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('measured_data.csv'))
+data_df = pandas.read_feather(bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('measured_data.fd'))
 z_values = data_df.loc[data_df['n_channel']==CHANNEL, ['n_position', 'z (m)']].groupby(['n_position']).mean()['z (m)']
 charge_mean = data_df.loc[data_df['n_channel']==CHANNEL, ['n_position', 'Collected charge (V s)']].groupby(['n_position']).mean()['Collected charge (V s)']
 charge_std = data_df.loc[data_df['n_channel']==CHANNEL, ['n_position', 'Collected charge (V s)']].groupby(['n_position']).std()['Collected charge (V s)']
