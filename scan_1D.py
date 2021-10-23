@@ -6,51 +6,9 @@ from data_processing_bureaucrat.Bureaucrat import Bureaucrat, TelegramReportingI
 from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
 from pathlib import Path
 from plotting_scripts.plot_everything_from_1D_scan import script_core as plot_everything_from_1D_scan
-import datetime
 import pandas
-import atexit
-import shutil
-
-class DataFrameDumper:
-	def __init__(self, file_path_in_the_end, df):
-		self._ended = False
-		self._columns_of_the_df = set(df.columns)
-		self._file_path_in_the_end = Path(file_path_in_the_end)
-		self._temp_files_path = self._file_path_in_the_end.with_suffix('.temp')
-		self._temp_files_path.mkdir(parents=True)
-		def _atexit():
-			if self._ended == False: # This means that the user forgot to call "end".
-				df = pandas.DataFrame(columns = self._columns_of_the_df)
-				# Concatenate all files into a single file.
-				for fpath in sorted(self._temp_files_path.iterdir()):
-					df = df.append(pandas.read_feather(fpath))
-				df.reset_index(inplace = True, drop=True)
-				df.to_csv(self._file_path_in_the_end.with_suffix('.csv')) # For some strange reason this does not work for feather format within the atexit module, see https://stackoverflow.com/questions/69667532/pandas-feather-atexit-runtimeerror-cannot-schedule-new-futures-after-inte
-				shutil.rmtree(self._temp_files_path)
-				self._ended = True
-		atexit.register(_atexit)
-	
-	def dump_to_disk(self, df):
-		"""Stores the dataframe in a temporary file in the disk and deletes all rows."""
-		self._check_ended()
-		if set(df.columns) != self._columns_of_the_df:
-			raise ValueError(f'The columns of the dataframe do not match!')
-		df.reset_index(drop=True).to_feather(self._temp_files_path/Path(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')))
-		return df[0:0]
-	
-	def end(self):
-		df = pandas.DataFrame(columns = self._columns_of_the_df)
-		# Concatenate all files into a single file.
-		for fpath in sorted(self._temp_files_path.iterdir()):
-			df = df.append(pandas.read_feather(fpath))
-		df.reset_index(inplace = True, drop=True)
-		df.to_feather(self._file_path_in_the_end.with_suffix('.fd'))
-		shutil.rmtree(self._temp_files_path)
-		self._ended = True
-	
-	def _check_ended(self):
-		if self._ended == True:
-			raise RuntimeError(f'This instance of {repr(DataFrameDumper)} was already ended! You cannot use it anymore.')
+import datetime
+from utils import DataFrameDumper
 	
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
@@ -63,7 +21,7 @@ def script_core(
 		the_setup,
 		n_triggers: int = 1,
 		acquire_channels = [1,2,3,4],
-		two_pulses = False,
+		two_pulses = True,
 		external_Telegram_reporter=None,
 	):
 	bureaucrat = Bureaucrat(
@@ -210,13 +168,10 @@ def script_core(
 			average_waveforms_df = average_waveforms_df.append(this_position_mean_df)
 			average_waveforms_df = average_waveforms_df.reset_index()
 	# Save remaining data ---
-	measured_data_df = measured_data_df_dumper.dump_to_disk(measured_data_df)
-	average_waveforms_df = waveforms_df_dumper.dump_to_disk(average_waveforms_df)
 	print('Finished measuring! :)')
-	
-	print('Merging dumped datagrames...')
-	measured_data_df_dumper.end()
-	waveforms_df_dumper.end()
+	print('Merging dumped dataframes...')
+	measured_data_df_dumper.end(measured_data_df)
+	waveforms_df_dumper.end(average_waveforms_df)
 	print('Doing plots...')
 	plot_everything_from_1D_scan(directory = bureaucrat.measurement_base_path)
 	print('Finished plotting!')
@@ -228,23 +183,23 @@ def script_core(
 if __name__ == '__main__':
 	from TheSetup import TheSetup
 	
-	X_MIDDLE = 2.072e-3+5e-6
-	Y_MIDDLE = 10.35585e-3
-	Z_FOCUS = .05214425
-	STEP_SIZE = 1e-6
+	X_MIDDLE = 2.830811e-3+5e-6
+	Y_MIDDLE = 10.34457e-3
+	Z_FOCUS = .05229646
+	STEP_SIZE = 8e-6
 	SWEEP_LENGTH = 333e-6
 	
-	x_positions = X_MIDDLE + np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))
-	y_positions = Y_MIDDLE + x_positions*0
+	y_positions = Y_MIDDLE + np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))
+	x_positions = X_MIDDLE + y_positions*0
 	z_positions = Z_FOCUS + x_positions*0
 	
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
-		bias_voltage = 55,
+		bias_voltage = 90,
 		laser_DAC = 2000,
 		positions = list(zip(x_positions,y_positions,z_positions)),
-		n_triggers = 222,
+		n_triggers = 4,
 		acquire_channels = [1,2],
 		two_pulses = True,
 	)
