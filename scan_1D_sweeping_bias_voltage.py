@@ -47,6 +47,7 @@ with reporter.report_for_loop(len(x_positions)*N_TRIGGERS_PER_POSITION*len(BIAS_
 			positions = list(zip(x_positions,y_positions,z_positions)),
 			n_triggers = N_TRIGGERS_PER_POSITION,
 			acquire_channels = [1,2],
+			two_pulses = True,
 			external_Telegram_reporter = reporter,
 		)
 		measurements_paths.append(measurement_base_path)
