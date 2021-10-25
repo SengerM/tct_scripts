@@ -13,7 +13,8 @@ def script_core(
 	voltages: list, # List of float numbers specifying the voltage points to measure.
 	current_compliance_amperes: float, # Compliance to set to the output, in amperes.
 	n_triggers: int, # Number of measurements to do at each voltage.
-	time_between_each_measurement: .5, # Minimum number of seconds between two consecutive readings.
+	time_between_each_measurement: float, #Number of seconds between two consecutive readings.
+	time_after_changing_voltage: float, # Time to wait after voltage has been changed. To reduce self-heating effects, make this time bigger.
 	the_setup,
 ):
 	bureaucrat = Bureaucrat(
@@ -32,9 +33,10 @@ def script_core(
 			measured_data_df,
 		)
 		for n_voltage, v in enumerate(voltages):
+			the_setup.bias_voltage = v
+			sleep(time_after_changing_voltage)
 			for n_trigger in range(n_triggers):
 				print(f'Measuring n_voltage={n_voltage}/{len(voltages)-1} n_trigger={n_trigger}/{n_triggers-1}')
-				the_setup.bias_voltage = v
 				sleep(time_between_each_measurement)
 				measured_data_df = measured_data_df.append(
 					{
@@ -71,12 +73,20 @@ def script_core(
 	
 if __name__ == '__main__':
 	import numpy as np
+	
+	MAXIMUM_POWER = 33e-6*99 # Watt
+	VOLTAGES = list(np.linspace(1,177,44)) + list(np.linspace(1,111,44))[::-1]
+	
+	current_compliance = MAXIMUM_POWER/max(VOLTAGES)
+	input(f'Current compliance {current_compliance} A, is this fine? Enter to continue, ctrl cancel to abort.')
+	
 	script_core(
 		directory = Path('C:/Users/tct_cms/Desktop/IV_curves')/Path(input('Measurement name? ').replace(' ','_')),
-		voltages = list(np.linspace(1,111,44)) + list(np.linspace(1,111,44))[::-1],
-		current_compliance_amperes = 33e-6,
-		n_triggers = 11,
+		voltages = VOLTAGES,
+		current_compliance_amperes = current_compliance,
+		n_triggers = 2,
 		time_between_each_measurement = .1,
+		time_after_changing_voltage = 3,
 		the_setup = TheSetup(),
 	)
 
