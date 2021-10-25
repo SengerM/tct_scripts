@@ -71,6 +71,12 @@ class TheSetup:
 		"""Returns the measured bias current."""
 		return self._keithley.measure_current()
 	
+	@property
+	def current_compliance(self):
+		"""Returns the current limit of the voltage source."""
+		return self._keithley.current_limit
+	
+	@current_compliance.setter
 	def current_compliance(self, amperes):
 		"""Sets the current compliance."""
 		self._keithley.current_limit = amperes
