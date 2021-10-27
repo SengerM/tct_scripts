@@ -57,6 +57,10 @@ class TheSetup:
 		"""Gets the waveform from the oscilloscope for the respective channel."""
 		return self._osc.get_waveform(channel=channel)
 	
+	def set_oscilloscope_vdiv(self, channel: int, vdiv: float):
+		"""Sets the osciloscope's Volts per division."""
+		self._osc.set_vdiv(channel, vdiv)
+	
 	@property
 	def bias_voltage(self):
 		"""Returns the measured bias voltage."""
