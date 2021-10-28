@@ -7,6 +7,7 @@ from data_processing_bureaucrat.Bureaucrat import Bureaucrat, TelegramReportingI
 from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
 import plotly.express as px
 import time
+import utils
 
 OSCILLOSCOPE_CHANNELS = [1,2]
 LASER_DAC = 2000
@@ -44,48 +45,7 @@ with reporter.report_for_loop(len(x_positions)*N_TRIGGERS_PER_POSITION*len(BIAS_
 	with open(bureaucrat.processed_data_dir_path/Path(f'README.txt'),'w') as ofile:
 		print(f'This measurement created automatically all the following measurements:',file=ofile)
 	for bias_voltage in BIAS_VOLTAGES:
-		# Adjust oscilloscope's vertical scale ---
-		print(f'Preparing to adjust oscilloscope VDIV...')
-		print(f'Turning laser on...')
-		the_setup.laser_DAC = LASER_DAC
-		the_setup.laser_status = 'on'
-		print(f'Setting bias voltage to {bias_voltage} V...')
-		the_setup.bias_voltage = bias_voltage
-		current_vdiv = 1e-3 # Start with the smallest scale.
-		for channel in OSCILLOSCOPE_CHANNELS:
-			the_setup.set_oscilloscope_vdiv(channel, current_vdiv)
-		the_setup.move_to(*positions[int(len(positions)*2/5)]) # Left pixel position.
-		n_signals_without_NaN = 0
-		NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE = 99
-		while n_signals_without_NaN < NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE:
-			print(f'Trying with VDIV = {current_vdiv} V/div... Attempt {n_signals_without_NaN+1} out of {NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE}.')
-			the_setup.wait_for_trigger()
-			volts = {}
-			error_in_acquisition = False
-			for n_channel in OSCILLOSCOPE_CHANNELS:
-				try:
-					raw_data = the_setup.get_waveform(channel = n_channel)
-				except Exception as e:
-					print(f'Cannot get data from oscilloscope, reason: {e}')
-					error_in_acquisition = True
-				volts[n_channel] = raw_data['Amplitude (V)']
-			if error_in_acquisition:
-				continue
-			if any(np.isnan(sum(volts[ch])) for ch in volts): # This means the scale is still too small.
-				n_signals_without_NaN = 0
-				current_vdiv *= 1.1
-				print(f'Scale is still too small, increasing to {current_vdiv} V/div')
-				for channel in OSCILLOSCOPE_CHANNELS:
-					the_setup.set_oscilloscope_vdiv(channel, current_vdiv)
-			else:
-				print(f'Signals without NaN! :)')
-				n_signals_without_NaN += 1
-		reporter.warn('Check oscilloscope vertical auto-scale!')
-		the_setup._osc.set_trig_mode('norm')
-		input('Press enter to confirm scale of left pad, otherwise manually adjust scale and then press enter.')
-		the_setup.move_to(*positions[int(len(positions)*3/5)]) # Left pixel position.
-		input('Press enter to confirm scale of right pad, otherwise manually adjust scale and then press enter.')
-		# ----------------------------------------
+		utils.adjust_oscilloscope_vdiv_for_TILGAD(the_setup=the_setup, laser_DAC=LASER_DAC, bias_voltage=bias_voltage, oscilloscope_channels=OSCILLOSCOPE_CHANNELS, positions=positions)
 		measurement_base_path = scan_1D(
 			measurement_name = f'{device_name}_1DScan_{bias_voltage}V',
 			the_setup = the_setup,
