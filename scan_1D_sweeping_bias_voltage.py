@@ -27,7 +27,7 @@ positions = list(zip(x_positions,y_positions,z_positions))
 
 the_setup = TheSetup()
 
-device_name = input('Device name? ')
+device_name = input('Device name? ').replace(' ','_')
 
 bureaucrat = Bureaucrat(
 	Path(f'C:/Users/tct_cms/Desktop/TCT_measurements_data')/Path(f'{device_name}_sweeping_bias_voltage'),
