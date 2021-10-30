@@ -9,9 +9,28 @@ from plotting_scripts.plot_everything_from_1D_scan import script_core as plot_ev
 import pandas
 import datetime
 from utils import DataFrameDumper
-	
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
+
+def wait_for_nice_trigger_without_EMI(the_setup, channels: list):
+	the_setup.wait_for_trigger()
+	is_noisy = True
+	print(f'Waiting for an EMI-free trigger...')
+	while is_noisy:
+		the_setup.wait_for_trigger()
+		for ch in channels:
+			try:
+				_raw = the_setup.get_waveform(channel=ch)
+			except Exception as e:
+				print(f'Cannot get data from oscilloscope, reason: {e}')
+				continue
+			_amplitude = np.array(_raw['Amplitude (V)'])
+			_time = np.array(_raw['Time (s)'])
+		samples_where_we_shoud_have_no_signal = _amplitude[(_time<220e-9)|((_time>250e-9)&(_time<320e-9))]
+		_noise = np.std(samples_where_we_shoud_have_no_signal)
+		if _noise < 3e-3:
+			is_noisy = False
+	print('Got an EMI-free trigger!')
 
 def script_core(
 		measurement_name: str, 
@@ -65,7 +84,7 @@ def script_core(
 			for n_trigger in range(n_triggers):
 				plot_this_trigger = np.random.rand() < 20/(len(positions)*n_triggers)
 				print(f'Measuring: n_position={n_position}/{len(positions)-1}, n_trigger={n_trigger}/{n_triggers-1}...')
-				the_setup.wait_for_trigger()
+				wait_for_nice_trigger_without_EMI(the_setup, acquire_channels)
 				for n_channel in acquire_channels:
 					try:
 						raw_data = the_setup.get_waveform(channel = n_channel)
@@ -183,20 +202,20 @@ def script_core(
 if __name__ == '__main__':
 	from TheSetup import TheSetup
 	
-	X_MIDDLE = 2.830811e-3+5e-6
-	Y_MIDDLE = 10.34457e-3
-	Z_FOCUS = .05229646
+	X_MIDDLE = -3.277255859375e-3
+	Y_MIDDLE = 1.08857421875e-3
+	Z_FOCUS = 0.07146473
 	STEP_SIZE = 8e-6
 	SWEEP_LENGTH = 333e-6
 	
-	y_positions = Y_MIDDLE + np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))
-	x_positions = X_MIDDLE + y_positions*0
+	x_positions = X_MIDDLE + np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))
+	y_positions = Y_MIDDLE + x_positions*0
 	z_positions = Z_FOCUS + x_positions*0
 	
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
-		bias_voltage = 90,
+		bias_voltage = 99,
 		laser_DAC = 2000,
 		positions = list(zip(x_positions,y_positions,z_positions)),
 		n_triggers = 4,
