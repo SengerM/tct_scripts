@@ -1,11 +1,63 @@
 from data_processing_bureaucrat.Bureaucrat import Bureaucrat
 import numpy as np
 from pathlib import Path
-import grafica
 import plotly.express as px
-import plotly.io as pio
 import pandas
 from grafica.plotly_utils.utils import line
+
+def calculate_1D_scan_distance(positions):
+	"""positions: List of positions, e.g. [(1, 4, 2), (2, 5, 2), (3, 7, 2), (4, 9, 2)].
+	returns: List of distances starting with 0 at the first point and assuming linear interpolation."""
+	return [0] + list(np.cumsum((np.diff(positions, axis=0)**2).sum(axis=1)**.5))
+
+def calculate_1D_scan_distance_from_dataframe(df):
+	x = df.groupby('n_position').mean()[f'x (m)']
+	y = df.groupby('n_position').mean()[f'y (m)']
+	z = df.groupby('n_position').mean()[f'z (m)']
+	distances_df = pandas.DataFrame({'n_position': [i for i in range(len(set(df['n_position'])))], 'Distance (m)': calculate_1D_scan_distance(list(zip(x,y,z)))})
+	distances_df.set_index('n_position')
+	return distances_df
+
+def mean_std(df, by):
+	"""Groups by `by` (list of columns), calculates mean and std, and creates one column with mean and another with std for each column not present in `by`.
+	Example
+	-------
+	df = pandas.DataFrame(
+		{
+			'n': [1,1,1,1,2,2,2,3,3,3,4,4],
+			'x': [0,0,0,0,1,1,1,2,2,2,3,3],
+			'y': [1,2,1,1,2,3,3,3,4,3,4,5],
+		}
+	)
+
+	mean_df = utils.mean_std(df, by=['n','x'])
+	
+	produces:
+	
+	   n  x    y mean     y std
+	0  1  0  1.250000  0.500000
+	1  2  1  2.666667  0.577350
+	2  3  2  3.333333  0.577350
+	3  4  3  4.500000  0.707107
+	"""
+	mean_df = df.groupby(by=by).agg(['mean','std'])
+	mean_df.columns = [' '.join(col).strip() for col in mean_df.columns.values]
+	return mean_df.reset_index()
+
+def calculate_normalized_collected_charge(df):
+	df['Normalized collected charge'] = df['Collected charge (V s)']
+	mean_df = df.groupby(by = ['n_channel','n_pulse','n_position']).mean().reset_index()
+	for n_pulse in sorted(set(mean_df['n_pulse'])):
+		for n_channel in sorted(set(mean_df['n_channel'])):
+			mean_df.loc[(mean_df['n_pulse']==n_pulse)&(mean_df['n_channel']==n_channel), 'Normalized collected charge'] = mean_df.loc[(mean_df['n_pulse']==n_pulse)&(mean_df['n_channel']==n_channel), 'Collected charge (V s)']
+			offset_factor = np.nanmin(mean_df.loc[(mean_df['n_pulse']==n_pulse)&(mean_df['n_channel']==n_channel), 'Normalized collected charge'])
+			mean_df.loc[(mean_df['n_pulse']==n_pulse)&(mean_df['n_channel']==n_channel), 'Normalized collected charge'] -= offset_factor
+			scale_factor = np.nanmax(mean_df.loc[(mean_df['n_pulse']==n_pulse)&(mean_df['n_channel']==n_channel), 'Normalized collected charge'])
+			mean_df.loc[(mean_df['n_pulse']==n_pulse)&(mean_df['n_channel']==n_channel), 'Normalized collected charge'] /= scale_factor
+			# Now I repeat for the df ---
+			df.loc[(df['n_pulse']==n_pulse)&(df['n_channel']==n_channel), 'Normalized collected charge'] -= offset_factor
+			df.loc[(df['n_pulse']==n_pulse)&(df['n_channel']==n_channel), 'Normalized collected charge'] /= scale_factor
+	return df
 
 def script_core(directory):
 	bureaucrat = Bureaucrat(
@@ -13,132 +65,88 @@ def script_core(directory):
 		variables = locals(),
 	)
 	
-	data_df = pandas.read_feather(
-		bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('measured_data.fd'),
-	)
-	
-	
-	n_position = sorted(set(data_df['n_position']))
-	distance = [None]*len(n_position)
-	for n_pos in n_position:
-		if n_pos == 0: 
-			distance[n_pos] = 0
-			continue
-		distance[n_pos] = distance[n_pos-1] + np.linalg.norm(data_df.loc[data_df['n_position']==n_pos,['x (m)', 'y (m)', 'z (m)']].iloc[0]-data_df.loc[data_df['n_position']==n_pos-1,['x (m)', 'y (m)', 'z (m)']].iloc[0])
-	
-	data_df = pandas.merge(
-		data_df.set_index('n_position'),
-		pandas.DataFrame({'n_position': [i for i in range(len(distance))], 'Distance (m)': distance}).set_index('n_position'),
-		left_index = True,
-		right_index = True,
-	).reset_index()
-	
-	for column in data_df:
-		if column in {'n_position', 'n_trigger', 'n_channel', 'n_pulse', 'When'}:
-			continue
-		# For each column, plot the mean and the std as scatter plots ---
-		for n_pulse in sorted(set(data_df['n_pulse'])):
-			for stat in {'mean','std'}:
-				for package in {'matplotlib', 'plotly'}:
-					fig = grafica.new(
-						title = f'{column[:column.find("(")][:-1]} {stat} n_pulse {n_pulse}',
-						subtitle = f'Data set: {bureaucrat.measurement_name}',
-						xlabel = 'Distance (m)',
-						ylabel = f'{stat} {column}',
-						plotter_name = package,
-					)
-					for ch in sorted(set(data_df['n_channel'])):
-						data_grouped_by_n_position_for_one_channel_one_pulse = data_df.loc[(data_df['n_channel']==ch)&(data_df['n_pulse']==n_pulse)].groupby(['n_position'])
-						if stat == 'mean':
-							y_vals = data_grouped_by_n_position_for_one_channel_one_pulse.mean()[column]
-						elif stat == 'std':
-							y_vals = data_grouped_by_n_position_for_one_channel_one_pulse.std()[column]
-						else:
-							raise ValueError(f'Dont know what is stat {repr(stat)}.')
-						fig.scatter(
-							x = distance,
-							y = y_vals,
-							label = f'CH {ch}',
-							marker = '.',
-						)
-					grafica.save_unsaved(mkdir = bureaucrat.processed_data_dir_path/Path('png' if package=='matplotlib' else 'html'))
-			# Now error band plots ---
-			fig = grafica.new(
-				title = f'{column[:column.find("(")][:-1]} n_pulse {n_pulse}',
-				subtitle = f'Data set: {bureaucrat.measurement_name}',
-				xlabel = 'Distance (m)',
-				ylabel = column,
-				plotter_name = 'plotly',
+	for script_name in {'laser_intensity_scan.py','scan_1D.py'}:
+		try:
+			data_df = pandas.read_feather(
+				bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('measured_data.fd'),
 			)
-			for ch in sorted(set(data_df['n_channel'])):
-				data_grouped_by_n_position_for_one_channel_one_pulse = data_df.loc[(data_df['n_channel']==ch)&(data_df['n_pulse']==n_pulse)].groupby(['n_position'])
-				fig.errorband(
-					distance,
-					y = data_grouped_by_n_position_for_one_channel_one_pulse.mean()[column],
-					lower = data_grouped_by_n_position_for_one_channel_one_pulse.std()[column],
-					higher = data_grouped_by_n_position_for_one_channel_one_pulse.std()[column],
-					label = f'CH {ch}',
-					marker = '.',
-				)
-			grafica.save_unsaved(mkdir = bureaucrat.processed_data_dir_path/Path('error band plots'))
+			break
+		except:
+			pass
+	if 'data_df' not in locals():
+		raise FileNotFoundError(f'Cannot locate a file with measured data...')
 	
-	# Now calculate the normalized collected charge ---
-	for n_pulse in sorted(set(data_df['n_pulse'])):
-		fig = grafica.new(
-			title = f'Normalized collected charge n_pulse {n_pulse}',
-			subtitle = f'Data set: {bureaucrat.measurement_name}',
-			xlabel = 'Distance (m)',
-			ylabel = 'Normalized collected charge',
+	distances_df = calculate_1D_scan_distance_from_dataframe(data_df)
+	data_df.set_index('n_position', inplace=True)
+	data_df = data_df.merge(distances_df, left_index=True, right_index=True)
+	data_df.reset_index(inplace=True, drop=True)
+	
+	data_df = calculate_normalized_collected_charge(data_df)
+	
+	GROUP_BY = ['n_position','n_channel','n_pulse','Distance (m)']
+	averaged_by_position_df = mean_std(data_df, by=GROUP_BY)
+	
+	mean_std_plots_dir_Path = bureaucrat.processed_data_dir_path/Path('mean_std_plots')
+	mean_std_plots_dir_Path.mkdir(parents=True, exist_ok=True)
+	for column in averaged_by_position_df:
+		if column in GROUP_BY:
+			continue
+		fig = line(
+			data_frame = averaged_by_position_df,
+			x = 'Distance (m)',
+			y = column,
+			color = 'n_channel',
+			line_dash = 'n_pulse',
+			symbol = 'n_pulse',
+			markers = True,
+			title = f'{column}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
 		)
-		normalized_collected_charge_df = pandas.DataFrame({'n_position': n_position})
-		for ch in sorted(set(data_df['n_channel'])):
-			data_grouped_by_n_position_for_one_channel_one_pulse = data_df.loc[(data_df['n_channel']==ch)&(data_df['n_pulse']==n_pulse)].groupby(['n_position'])
-			normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} average'] = data_grouped_by_n_position_for_one_channel_one_pulse.mean()['Collected charge (V s)']
-			normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} std'] = data_grouped_by_n_position_for_one_channel_one_pulse.std()['Collected charge (V s)']
-			normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} average'] -= normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} average'].min()
-			normalization_factor = normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} average'].max()
-			normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} average'] /= normalization_factor
-			normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} std'] /= normalization_factor
-			fig.errorband(
-				distance,
-				y = normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} average'],
-				lower = normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} std'],
-				higher = normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} std'],
-				label = f'CH {ch}',
-				marker = '.',
+		fig.write_html(str(mean_std_plots_dir_Path/Path(f'{column}.html')), include_plotlyjs='cdn')
+	
+	error_band_plots_dir_Path = bureaucrat.processed_data_dir_path/Path('error_band_plots')
+	error_band_plots_dir_Path.mkdir(parents=True, exist_ok=True)
+	for column in data_df:
+		if column in GROUP_BY + ['When']:
+			continue
+		fig = line(
+			data_frame = averaged_by_position_df,
+			x = 'Distance (m)',
+			y = f'{column} mean',
+			error_y = f'{column} std',
+			error_y_mode = 'band',
+			color = 'n_channel',
+			line_dash = 'n_pulse',
+			symbol = 'n_pulse',
+			markers = True,
+			title = f'{column}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
+		)
+		fig.write_html(str(error_band_plots_dir_Path/Path(f'{column}.html')), include_plotlyjs='cdn')
+		
+	n_channels = sorted(set(data_df['n_channel'])) 
+	for idx,ch_A in enumerate(n_channels):
+		for ch_B in n_channels[idx:]:
+			if ch_A == ch_B:
+				continue
+			these_channels_df = data_df.loc[(data_df['n_channel']==ch_A)|(data_df['n_channel']==ch_B),['n_position','n_pulse','n_trigger','n_channel','Distance (m)','Normalized collected charge']]
+			summed_df = these_channels_df.groupby(by=['n_position','n_pulse','n_trigger','Distance (m)']).sum().reset_index()
+			summed_and_averaged_df = mean_std(summed_df, by=['Distance (m)','n_pulse','n_channel'])
+			these_channels_df = mean_std(these_channels_df, by=['Distance (m)','n_pulse','n_channel'])
+			for ch in {ch_A,ch_B}:
+				these_channels_df.loc[these_channels_df['n_channel']==ch,'Channel'] = f'CH{ch}'
+			summed_and_averaged_df.loc[(summed_and_averaged_df['n_channel']!=ch_A)&(summed_and_averaged_df['n_channel']!=ch_B),'Channel'] = f'CH{ch_A}+CH{ch_B}'
+			df = these_channels_df.append(summed_and_averaged_df, ignore_index=True)
+			fig = line(
+				data_frame = df,
+				x = 'Distance (m)',
+				y = 'Normalized collected charge mean',
+				error_y = 'Normalized collected charge std',
+				error_y_mode = 'band',
+				color = 'Channel',
+				line_dash = 'n_pulse',
+				symbol = 'n_pulse',
+				title = f'Total collected charge CH{ch_A} and CH{ch_B}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
 			)
-		
-		
-		for ch_A in sorted(set(data_df['n_channel'])):
-			for ch_B in sorted(set(data_df['n_channel'])):
-				if ch_A == ch_B:
-					continue
-				fig = grafica.new(
-					title = f'Sum of channels {ch_A} and {ch_B} n_pulse {n_pulse}',
-					subtitle = f'Data set: {bureaucrat.measurement_name}',
-					xlabel = 'Distance (m)',
-					ylabel = 'Normalized collected charge',
-				)
-				for ch in [ch_A,ch_B]:
-					fig.errorband(
-						distance,
-						y = normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} average'],
-						lower = normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} std'],
-						higher = normalized_collected_charge_df[f'n_channel {ch} n_pulse {n_pulse} std'],
-						label = f'CH {ch}',
-						marker = '.',
-					)
-				summed_charge_mean = normalized_collected_charge_df[f'n_channel {ch_A} n_pulse {n_pulse} average'] + normalized_collected_charge_df[f'n_channel {ch_B} n_pulse {n_pulse} average']
-				summed_charge_std = normalized_collected_charge_df[f'n_channel {ch_A} n_pulse {n_pulse} std'] + normalized_collected_charge_df[f'n_channel {ch_B} n_pulse {n_pulse} std']
-				fig.errorband(
-					distance,
-					y = summed_charge_mean,
-					lower = summed_charge_std,
-					higher = summed_charge_std,
-					label = f'CH {ch_A} + CH {ch_B}',
-					marker = '.',
-				)
-		grafica.save_unsaved(mkdir = bureaucrat.processed_data_dir_path/Path('error band plots'))
+			fig.write_html(str(error_band_plots_dir_Path/Path(f'Total collected charge CH{ch_A} and CH{ch_B}.html')), include_plotlyjs='cdn')
 	
 	# Histograms with sliders for the position ---
 	for column in {'Amplitude (V)','Noise (V)','Rise time (s)','Collected charge (V s)','Time over noise (s)','t_10 (s)','t_50 (s)','t_90 (s)'}:
@@ -165,7 +173,7 @@ def script_core(directory):
 		)
 		ofilepath = bureaucrat.processed_data_dir_path/Path('histograms')/Path(figure_title+'.html')
 		ofilepath.parent.absolute().mkdir(parents=True, exist_ok=True)
-		pio.write_html(fig, file=str(ofilepath))
+		fig.write_html(str(ofilepath), include_plotlyjs='cdn')
 	
 	average_waveforms_df = pandas.read_feather(bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('average_waveforms.fd'))
 	fig = line(
@@ -173,12 +181,12 @@ def script_core(directory):
 		data_frame = average_waveforms_df,
 		x = 'Time (s)',
 		y = 'Amplitude mean (V)',
-		# ~ error_y = 'Amplitude std (V)',
-		# ~ error_y_mode = 'bands',
 		color = 'n_pulse',
 		animation_frame = 'n_position',
 		facet_row = 'n_channel',
 	)
+	fig.update_yaxes(range=[average_waveforms_df['Amplitude mean (V)'].min(), average_waveforms_df['Amplitude mean (V)'].max()])
+	fig.update_layout(transition={'duration': 1})
 	fig.write_html(str(bureaucrat.processed_data_dir_path/Path('waveforms.html')), include_plotlyjs='cdn')
 	
 if __name__ == '__main__':
@@ -194,4 +202,3 @@ if __name__ == '__main__':
 	)
 	args = parser.parse_args()
 	script_core(args.directory)
-
