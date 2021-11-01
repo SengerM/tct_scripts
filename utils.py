@@ -69,29 +69,42 @@ def adjust_oscilloscope_vdiv_for_TILGAD(the_setup, laser_DAC, bias_voltage, osci
 	current_vdiv = 1e-3 # Start with the smallest scale.
 	for channel in oscilloscope_channels:
 		the_setup.set_oscilloscope_vdiv(channel, current_vdiv)
-	the_setup.move_to(*positions[int(len(positions)*2/5)]) # Left pixel position.
-	n_signals_without_NaN = 0
-	NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE = 99
-	while n_signals_without_NaN < NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE:
-		print(f'Trying with VDIV = {current_vdiv} V/div... Attempt {n_signals_without_NaN+1} out of {NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE}.')
-		the_setup.wait_for_trigger()
-		volts = {}
-		error_in_acquisition = False
-		for n_channel in oscilloscope_channels:
-			try:
-				raw_data = the_setup.get_waveform(channel = n_channel)
-			except Exception as e:
-				print(f'Cannot get data from oscilloscope, reason: {e}')
-				error_in_acquisition = True
-			volts[n_channel] = raw_data['Amplitude (V)']
-		if error_in_acquisition:
-			continue
-		if any(np.isnan(sum(volts[ch])) for ch in volts): # This means the scale is still too small.
-			n_signals_without_NaN = 0
-			current_vdiv *= 1.1
-			print(f'Scale is still too small, increasing to {current_vdiv} V/div')
-			for channel in oscilloscope_channels:
-				the_setup.set_oscilloscope_vdiv(channel, current_vdiv)
-		else:
-			print(f'Signals without NaN! :)')
-			n_signals_without_NaN += 1
+	for position_idx,position in enumerate([positions[int(len(positions)*2/5)],positions[int(len(positions)*3/5)]]): # One position is left pix, the other is right pix.
+		the_setup.move_to(*position) # Left pixel position.
+		n_signals_without_NaN = 0
+		NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE = 222
+		while n_signals_without_NaN < NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE:
+			the_setup.wait_for_trigger()
+			volts = {}
+			error_in_acquisition = False
+			for n_channel in oscilloscope_channels:
+				try:
+					raw_data = the_setup.get_waveform(channel = n_channel)
+				except Exception as e:
+					print(f'Cannot get data from oscilloscope, reason: {e}')
+					error_in_acquisition = True
+				volts[n_channel] = raw_data['Amplitude (V)']
+			if error_in_acquisition:
+				print(f'Will skip this cycle and try to acquire again...')
+				continue
+			if any(np.isnan(sum(volts[ch])) for ch in volts): # This means the scale is still too small.
+				n_signals_without_NaN = 0
+				current_vdiv *= 1.1
+				print(f'Scale is still too small, increasing to {current_vdiv} V/div')
+				for channel in oscilloscope_channels:
+					the_setup.set_oscilloscope_vdiv(channel, current_vdiv)
+			else:
+				print(f'{n_signals_without_NaN+1} out of {NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE} signals without NaN, scale seems to be fine!')
+				n_signals_without_NaN += 1
+
+def interlace(lst):
+	# https://en.wikipedia.org/wiki/Interlacing_(bitmaps)
+	lst = sorted(lst)
+	result = [lst[0], lst[-1]]
+	ranges = [(1, len(lst) - 1)]
+	for start, stop in ranges:
+		if start < stop:
+			middle = (start + stop) // 2
+			result.append(lst[middle])
+			ranges += (start, middle), (middle + 1, stop)
+	return result
