@@ -12,18 +12,21 @@ import utils
 OSCILLOSCOPE_CHANNELS = [1,2]
 LASER_DAC = 2000
 N_TRIGGERS_PER_POSITION = 55
-BIAS_VOLTAGES = [288,250,222,199,155,111,77,55]
-X_MIDDLE = 2.061416015625e-3
-Y_MIDDLE = 9.699013671874999e-3
-Z_FOCUS = 52.2831640625e-3
-STEP_SIZE = .5e-6
+BIAS_VOLTAGES = np.linspace(55,222,7)
+X_MIDDLE = -2.8517089843749996e-3
+Y_MIDDLE = 2.042216796875e-3
+Z_FOCUS = 71.419609375e-3
+STEP_SIZE = 1e-6
 SWEEP_LENGTH = 333e-6
 
-y_positions = Y_MIDDLE + np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))
-x_positions = X_MIDDLE + y_positions*0
+x_positions = X_MIDDLE + np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))
+y_positions = Y_MIDDLE + x_positions*0
 z_positions = Z_FOCUS + x_positions*0
 
 positions = list(zip(x_positions,y_positions,z_positions))
+
+BIAS_VOLTAGES = utils.interlace(BIAS_VOLTAGES)
+input(f'BIAS_VOLTAGES = {BIAS_VOLTAGES} after interlacing, is this correct?')
 
 the_setup = TheSetup()
 
