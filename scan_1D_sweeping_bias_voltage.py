@@ -25,7 +25,7 @@ z_positions = Z_FOCUS + x_positions*0
 
 positions = list(zip(x_positions,y_positions,z_positions))
 
-BIAS_VOLTAGES = utils.interlace(BIAS_VOLTAGES)
+BIAS_VOLTAGES = [int(V) for v in utils.interlace(BIAS_VOLTAGES)]
 input(f'BIAS_VOLTAGES = {BIAS_VOLTAGES} after interlacing, is this correct?')
 
 the_setup = TheSetup()
