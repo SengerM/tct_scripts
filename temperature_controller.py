@@ -4,9 +4,12 @@ from simple_pid import PID
 from time import sleep
 import atexit
 import threading
+from Pyro5.api import expose, behavior, serve
 
 PID_SAMPLE_TIME = 1
 
+@expose
+@behavior(instance_mode="single")
 class TemperatureController:
 	def __init__(self):
 		self._temperature_humidity_sensor = EasySensirion.SensirionSensor()
@@ -115,21 +118,23 @@ class TemperatureController:
 		temperature_control_thread = threading.Thread(target=temperature_control_thread_function)
 		temperature_control_thread.start()
 	
-	def print_report(self):
-		print(f'Controller status: {repr(self.status)}')
-		print(f'T_set = {self.temperature_setpoint} °C | T_meas = {self.temperature:.2f} °C')
-		print(f'I_meas = {self.peltier_measured_current:.2f} A | V_meas = {self.peltier_measured_voltage:.2f} V Peltier = {repr(self.peltier_status)}')
+	def report(self):
+		report_string = ''
+		report_string += f'Controller status: {repr(self.status)}'
+		report_string += '\n'
+		report_string += f'T_set = {self.temperature_setpoint} °C | T_meas = {self.temperature:.2f} °C'
+		report_string += '\n'
+		report_string += f'Peltier = {repr(self.peltier_status)}, I_measured = {self.peltier_measured_current:.2f} A | V_measured = {self.peltier_measured_voltage:.2f} V'
+		return report_string
 
-if __name__ == '__main__':
-	controller = TemperatureController()
+def run_as_daemon():
+	# https://stackoverflow.com/questions/656933/communicating-with-a-running-python-daemon
+	serve(
+		{
+			TemperatureController: 'temperature_controller'
+		},
+		use_ns = False,
+	)
 
-	print(f'Temperature system is {controller.status}')
-
-	controller.temperature_setpoint = 19
-	controller.start()
-	print(f'Temperature control system is {controller.status} with setpoint = {controller.temperature_setpoint} °C')
-	while True:
-		controller.print_report()
-		new_setpoint = input('New setpoint? ')
-		if new_setpoint != '':
-			controller.temperature_setpoint = float(new_setpoint)
+if __name__ == "__main__":
+	run_as_daemon()
