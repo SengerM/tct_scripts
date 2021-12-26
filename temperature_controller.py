@@ -5,6 +5,8 @@ from time import sleep
 import atexit
 import threading
 
+PID_SAMPLE_TIME = 1
+
 class TemperatureController:
 	def __init__(self):
 		self._temperature_humidity_sensor = EasySensirion.SensirionSensor()
@@ -14,8 +16,14 @@ class TemperatureController:
 		self._temperature_humidity_sensor_lock = threading.RLock()
 		self._peltier_DC_power_supply_lock = threading.RLock()
 		
+		# PID to control temperature ---
+		self.temperature_pid = PID(-.5,-.1,-2)
+		self.temperature_pid.sample_time = PID_SAMPLE_TIME
+		self.temperature_pid.output_limits = (0, 4.2) # Will control the current in Ampere.
+		self.temperature_pid.setpoint = 22 # Default value.
+		
 		def at_exit():
-			self.turn_off()
+			self.stop()
 			sleep(.5) # Transcient...
 			print(f'Peltier array is: {repr(self.peltier_status)}. I_peltier = {self.peltier_measured_current:.2f} A, V_peltier = {self.peltier_measured_voltage:.2f} V.')
 		atexit.register(at_exit)
@@ -66,15 +74,10 @@ class TemperatureController:
 		with self._peltier_DC_power_supply_lock:
 			return self._peltier_DC_power_supply.output
 	
-	def turn_off(self):
-		"""Turn off everything related to the peltiers."""
-		with self._peltier_DC_power_supply_lock:
-			self._peltier_DC_power_supply.enable_output(False)
-	
 	@property
 	def temperature_setpoint(self):
 		"""Return the temperature setpoint in °C."""
-		return self._temperature_setpoint if hasattr(self, '_temperature_setpoint') else 22 # This is the default temperature setpoint.
+		return self.temperature_pid.setpoint
 	@temperature_setpoint.setter
 	def temperature_setpoint(self, celsius):
 		"""Set the temperature setpoint in °C."""
@@ -82,49 +85,51 @@ class TemperatureController:
 			raise TypeError(f'Temperature must be a float number, received {repr(celsius)} of type {type(celsius)}.')
 		if not -25 <= celsius <= 25:
 			raise ValueError(f'Temperature must be within -25 °C and 25 °C, received {celsius} °C.')
-		self._temperature_setpoint = celsius
+		self.temperature_pid.setpoint = celsius
 	
 	@property
-	def temperature_control_status(self):
+	def status(self):
 		"""Returns 'on' or 'off'."""
 		return self._temperature_control_status if hasattr(self, '_temperature_control_status') else 'off' # Start off by default.
-	@temperature_control_status.setter
-	def temperature_control_status(self, status: str):
-		PID_SAMPLE_TIME = 1
-		if status not in {'on', 'off'}:
-			raise ValueError(f'`status` must be either "on" or "off", received {repr(status)}.')
-		if status == 'on' and self.temperature_control_status == 'off': # It has to be turned on.
+	
+	def stop(self):
+		"""Stops the controller and turn off everything related to the peltiers."""
+		with self._peltier_DC_power_supply_lock:
+			self._peltier_DC_power_supply.enable_output(False)
+	
+	def start(self):
+		if self.status == 'on': # Do nothing.
+			return
+		def temperature_control_thread_function():
 			self._temperature_control_status = 'on'
-			self.temperature_pid = PID(-.5,-.1,-2)
-			self.temperature_pid.sample_time = PID_SAMPLE_TIME
-			self.temperature_pid.output_limits = (0, 4.2) # Will control the current in Ampere.
 			with self._peltier_DC_power_supply_lock:
 				self._peltier_DC_power_supply.set_voltage_value = 30
 				self._peltier_DC_power_supply.enable_output(True) # Turn the power supply on.
-			def temperature_control_thread_function():
-				while self._temperature_control_status == 'on' and self.peltier_status == 'on':
-					self.temperature_pid.setpoint = self.temperature_setpoint # Update setpoint regularly.
-					new_current = self.temperature_pid(self.temperature)
-					with self._peltier_DC_power_supply_lock:
-						self._peltier_DC_power_supply.set_current_value = new_current # Update the current.
-					sleep(PID_SAMPLE_TIME)
-				self.turn_off()
-				self._temperature_control_status = 'off'
-				print(f'Temperature control has finished.')
-			temperature_control_thread = threading.Thread(target=temperature_control_thread_function)
-			sleep(1) # Any transient.
-			temperature_control_thread.start()
-		elif status == 'off' and self.temperature_control_status == 'on':
+			sleep(.5) # Transients.
+			while self.peltier_status == 'on': # Operate as long as nobody turn the Peltier cells off...
+				new_current = self.temperature_pid(self.temperature)
+				with self._peltier_DC_power_supply_lock:
+					self._peltier_DC_power_supply.set_current_value = new_current # Update the current.
+				sleep(PID_SAMPLE_TIME)
 			self._temperature_control_status = 'off'
+		temperature_control_thread = threading.Thread(target=temperature_control_thread_function)
+		temperature_control_thread.start()
+	
+	def print_report(self):
+		print(f'Controller status: {repr(self.status)}')
+		print(f'T_set = {self.temperature_setpoint} °C | T_meas = {self.temperature:.2f} °C')
+		print(f'I_meas = {self.peltier_measured_current:.2f} A | V_meas = {self.peltier_measured_voltage:.2f} V Peltier = {repr(self.peltier_status)}')
 
 if __name__ == '__main__':
 	controller = TemperatureController()
 
-	print(f'Temperature system is {controller.temperature_control_status}')
+	print(f'Temperature system is {controller.status}')
 
 	controller.temperature_setpoint = 19
-	controller.temperature_control_status = 'on'
-	print(f'Temperature control system is {controller.temperature_control_status} with setpoint = {controller.temperature_setpoint} °C')
+	controller.start()
+	print(f'Temperature control system is {controller.status} with setpoint = {controller.temperature_setpoint} °C')
 	while True:
-		print(f'T_set = {controller.temperature_setpoint} °C | T_meas = {controller.temperature:.2f} °C | I_meas = {controller.peltier_measured_current:.2f} A | V_meas = {controller.peltier_measured_voltage:.2f} V | I_set = {controller.peltier_set_current:.2f} A | V_set = {controller.peltier_set_voltage:.2f} V | Peltier = {repr(controller.peltier_status)}')
-		sleep(1)
+		controller.print_report()
+		new_setpoint = input('New setpoint? ')
+		if new_setpoint != '':
+			controller.temperature_setpoint = float(new_setpoint)
