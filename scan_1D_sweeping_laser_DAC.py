@@ -10,9 +10,9 @@ import time
 import utils
 
 OSCILLOSCOPE_CHANNELS = [1,2]
-LASER_DAC = 2000
-N_TRIGGERS_PER_POSITION = 44
-BIAS_VOLTAGES = np.linspace(55,250,9)
+LASER_DACs = [int(DAC) for DAC in np.linspace(1810,2100,9)]
+N_TRIGGERS_PER_POSITION = 99
+BIAS_VOLTAGE = 170
 STEP_SIZE = 1e-6
 SWEEP_LENGTH = 333e-6
 
@@ -24,14 +24,14 @@ y_positions = Y_MIDDLE - np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LE
 z_positions = Z_FOCUS + x_positions*0
 positions = list(zip(x_positions,y_positions,z_positions))
 
-BIAS_VOLTAGES = [int(V) for V in utils.interlace(BIAS_VOLTAGES)]
+positions = list(zip(x_positions,y_positions,z_positions))
 
 the_setup = TheSetup()
 
 device_name = input('Device name? ').replace(' ','_')
 
 bureaucrat = Bureaucrat(
-	Path(f'C:/Users/tct_cms/Desktop/TCT_measurements_data')/Path(f'{device_name}_sweeping_bias_voltage'),
+	Path(f'C:/Users/tct_cms/Desktop/TCT_measurements_data')/Path(f'{device_name}_sweeping_laser_DAC'),
 	variables = locals(),
 	new_measurement = True,
 )
@@ -42,16 +42,16 @@ reporter = TelegramReporter(
 	telegram_chat_id = TelegramReportingInformation().chat_id,
 )
 
-with reporter.report_for_loop(len(x_positions)*N_TRIGGERS_PER_POSITION*len(BIAS_VOLTAGES), f'{bureaucrat.measurement_name}') as reporter:
+with reporter.report_for_loop(len(positions)*N_TRIGGERS_PER_POSITION*len(LASER_DACs), f'{bureaucrat.measurement_name}') as reporter:
 	with open(bureaucrat.processed_data_dir_path/Path(f'README.txt'),'w') as ofile:
 		print(f'This measurement created automatically all the following measurements:',file=ofile)
-	for idx, bias_voltage in enumerate(BIAS_VOLTAGES):
-		utils.adjust_oscilloscope_vdiv_for_TILGAD(the_setup=the_setup, laser_DAC=LASER_DAC, bias_voltage=bias_voltage, oscilloscope_channels=OSCILLOSCOPE_CHANNELS, positions=positions)
+	for laser_DAC in utils.interlace(LASER_DACs):
+		utils.adjust_oscilloscope_vdiv_for_TILGAD(the_setup=the_setup, laser_DAC=laser_DAC, bias_voltage=BIAS_VOLTAGE, oscilloscope_channels=OSCILLOSCOPE_CHANNELS, positions=positions)
 		measurement_base_path = scan_1D(
-			measurement_name = f'{device_name}_1DScan_{bias_voltage}V',
+			measurement_name = f'{device_name}_1DScan_laser_DAC_{laser_DAC}',
 			the_setup = the_setup,
-			bias_voltage = bias_voltage,
-			laser_DAC = LASER_DAC,
+			bias_voltage = BIAS_VOLTAGE,
+			laser_DAC = laser_DAC,
 			positions = positions,
 			n_triggers = N_TRIGGERS_PER_POSITION,
 			acquire_channels = OSCILLOSCOPE_CHANNELS,

@@ -19,6 +19,7 @@ def script_core(
 		acquire_channels = [1,2,3,4],
 		two_pulses = False,
 	):
+	
 	bureaucrat = Bureaucrat(
 		str(Path(f'C:/Users/tct_cms/Desktop/TCT_measurements_data/{measurement_name}')),
 		variables = locals(),
@@ -27,7 +28,6 @@ def script_core(
 	
 	if two_pulses:
 		the_setup.configure_oscilloscope_for_two_pulses()
-	
 	print('Configuring laser...')
 	the_setup.laser_DAC = laser_DAC
 	the_setup.laser_status = 'on'
@@ -121,12 +121,12 @@ def script_core(
 if __name__ == '__main__':
 	from TheSetup import TheSetup
 	
-	X_MIDDLE = -0.427548828125e-3
-	Y_MIDDLE = 9.500849609375e-3
-	Z_FOCUS = 52.2112e-3
-	STEP_SIZE = 3e-6
-	SWEEP_LENGTH_X = 2*100e-6
-	SWEEP_LENGTH_Y = 200e-6
+	X_MIDDLE = -8.073564453125e-3
+	Y_MIDDLE = -6.81076171875e-3
+	Z_FOCUS = 52.382822265624995e-3
+	STEP_SIZE = 11e-6
+	SWEEP_LENGTH_X = 333e-6
+	SWEEP_LENGTH_Y = 333e-6
 	
 	x_positions = np.linspace(-SWEEP_LENGTH_X/2,SWEEP_LENGTH_X/2,int(SWEEP_LENGTH_X/STEP_SIZE)) + X_MIDDLE
 	y_positions = np.linspace(-SWEEP_LENGTH_Y/2,SWEEP_LENGTH_Y/2,int(SWEEP_LENGTH_Y/STEP_SIZE)) + Y_MIDDLE
@@ -134,11 +134,11 @@ if __name__ == '__main__':
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
-		bias_voltage = 99,
-		laser_DAC = 2000,
+		bias_voltage = 333,
+		laser_DAC = 2080,
 		positions = [[(x,y,Z_FOCUS) for y in y_positions] for x in x_positions],
 		n_triggers = 4,
-		acquire_channels = [1,2],
+		acquire_channels = [2],
 		two_pulses = True,
 	)
 

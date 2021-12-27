@@ -12,6 +12,7 @@ def script_core(directory):
 		variables = locals(),
 	)
 	
+	
 	data = pandas.read_csv(
 		bureaucrat.processed_by_script_dir_path('laser_intensity_scan.py')/Path('measured_data.csv'),
 	)

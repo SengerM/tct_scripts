@@ -74,19 +74,17 @@ def script_core(
 if __name__ == '__main__':
 	import numpy as np
 	
-	MAXIMUM_POWER = 33e-6*99 # Watt
-	VOLTAGES = list(np.linspace(1,177,44)) + list(np.linspace(1,111,44))[::-1]
+	VOLTAGES = np.linspace(0,555,11)
 	
-	current_compliance = MAXIMUM_POWER/max(VOLTAGES)
-	input(f'Current compliance {current_compliance} A, is this fine? Enter to continue, ctrl cancel to abort.')
+	current_compliance = 1e-6
 	
 	script_core(
 		directory = Path('C:/Users/tct_cms/Desktop/IV_curves')/Path(input('Measurement name? ').replace(' ','_')),
-		voltages = VOLTAGES,
+		voltages = list(VOLTAGES) + list(VOLTAGES)[::-1],
 		current_compliance_amperes = current_compliance,
 		n_triggers = 2,
 		time_between_each_measurement = .1,
-		time_after_changing_voltage = 3,
+		time_after_changing_voltage = 2,
 		the_setup = TheSetup(),
 	)
 
