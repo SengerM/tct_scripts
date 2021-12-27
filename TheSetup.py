@@ -9,12 +9,15 @@ import threading
 
 class TheSetup:
 	"""This class wraps all the hardware so if there are changes it is easy to adapt."""
-	def __init__(self, safe_mode=True):
-		"""safe_mode: Turns laser and high voltage off when your Python instance is finished using `atexit`. Temperature is not touched."""
+	def __init__(self, temperature_controller_Pyro_uri:str, safe_mode=True):
+		"""
+		- temperature_controller_Pyro_uri: The URI provided by the Pyro daemon when running the temperature controller.
+		- safe_mode: Turns laser and high voltage off when your Python instance is finished using `atexit`. Temperature is not touched.
+		"""
 		self._oscilloscope = TeledyneLeCroyPy.LeCroyWaveRunner(pyvisa.ResourceManager().open_resource('USB0::1535::4131::2810N60091::0::INSTR'))
 		self._tct = PyticularsTCT.TCT()
 		self._keithley = Keithley2470SafeForLGADs('USB0::1510::9328::04481179::0::INSTR', polarity = 'negative')
-		self._temperature_controller = Proxy('PYRO:temperature_controller@0.0.0.0:41995')
+		self._temperature_controller = Proxy(temperature_controller_Pyro_uri)
 		
 		# Threading locks ---
 		self._oscilloscope_Lock = threading.RLock()
@@ -153,7 +156,9 @@ class TheSetup:
 if __name__ == '__main__':
 	import time
 	
-	the_setup = TheSetup()
+	the_setup = TheSetup(
+		temperature_controller_Pyro_uri = 'PYRO:temperature_controller@0.0.0.0:41995',
+	)
 	
 	print(f'Temperature = {the_setup.temperature:.2f} °C, humidity = {the_setup.humidity:.2f} %RH')
 
