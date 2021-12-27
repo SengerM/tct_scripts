@@ -1,109 +1,164 @@
 import PyticularsTCT # https://github.com/SengerM/PyticularsTCT
 import pyvisa
 import TeledyneLeCroyPy # https://github.com/SengerM/TeledyneLeCroyPy
-from keithley.Keithley2470 import Keithley2470SafeForLGADs
+from keithley.Keithley2470 import Keithley2470SafeForLGADs # https://github.com/SengerM/keithley
+from Pyro5.api import Proxy
 import atexit
+from time import sleep
+import threading
 
 class TheSetup:
 	"""This class wraps all the hardware so if there are changes it is easy to adapt."""
-	def __init__(self):
-		self._osc = TeledyneLeCroyPy.LeCroyWaveRunner(pyvisa.ResourceManager().open_resource('USB0::0x05FF::0x1023::4751N40408::INSTR'))
-		self._tct = PyticularsTCT.ParticularsTCT()
+	def __init__(self, temperature_controller_Pyro_uri:str, safe_mode=True):
+		"""
+		- temperature_controller_Pyro_uri: The URI provided by the Pyro daemon when running the temperature controller.
+		- safe_mode: Turns laser and high voltage off when your Python instance is finished using `atexit`. Temperature is not touched.
+		"""
+		self._oscilloscope = TeledyneLeCroyPy.LeCroyWaveRunner(pyvisa.ResourceManager().open_resource('USB0::1535::4131::2810N60091::0::INSTR'))
+		self._tct = PyticularsTCT.TCT()
 		self._keithley = Keithley2470SafeForLGADs('USB0::1510::9328::04481179::0::INSTR', polarity = 'negative')
+		self._temperature_controller = Proxy(temperature_controller_Pyro_uri)
 		
-		self._keithley.set_output('on')
+		# Threading locks ---
+		self._oscilloscope_Lock = threading.RLock()
+		self._tct_Lock = threading.RLock()
+		self._keithley_Lock = threading.RLock()
+		self._temperature_humidity_sensor_Lock = threading.RLock()
+		self._peltier_DC_power_supply_Lock = threading.RLock()
 		
 		def at_exit():
 			print('Turning bias voltage off...')
-			self._keithley.set_output('off')
-			print('Bias voltage is OFF.')
+			self.bias_output_status = 'off'
+			print(f'Bias voltage is: {self.bias_output_status}.')
 			print('Turning laser off...')
-			self._tct.laser.off()
-			print('Laser is OFF.')
-		atexit.register(at_exit)
+			self.laser_status = 'off'
+			print(f'Laser is: {self.laser_status}.')
+		if safe_mode == True:
+			atexit.register(at_exit)
+	
+	# Motorized xyz stages ---------------------------------------------
 	
 	def move_to(self, x=None, y=None, z=None):
 		"""Move the TCT stages to the specified position."""
-		self._tct.stages.move_to(x=x,y=y,z=z)
+		with self._tct_Lock:
+			self._tct.stages.move_to(x=x,y=y,z=z)
 	
 	@property
 	def position(self):
 		"""Returns the position of the stages."""
-		return self._tct.stages.position
+		with self._tct_Lock:
+			return self._tct.stages.position
+	
+	# Laser ------------------------------------------------------------
 	
 	@property
 	def laser_status(self):
 		"""Return the laser status "on" or "off"."""
-		return self._tct.laser.status
+		with self._tct_Lock:
+			return self._tct.laser.status
 	@laser_status.setter
 	def laser_status(self, status):
 		"""Set the laser status "on" or "off"."""
-		self._tct.laser.status = status
+		with self._tct_Lock:
+			self._tct.laser.status = status
 	
 	@property
 	def laser_DAC(self):
 		"""Returns the laser DAC value."""
-		return self._tct.laser.DAC
+		with self._tct_Lock:
+			return int(self._tct.laser.DAC*3300/2**10) # The conversion is for compatibility with the previous version of the controller which uses the "oficial Particulars controller".
 	@laser_DAC.setter
 	def laser_DAC(self, value):
 		"""Set the value of the DAC for the laser."""
-		self._tct.laser.DAC = value
+		with self._tct_Lock:
+			self._tct.laser.DAC = int(value*2**10/3300) # The conversion is for compatibility with the previous version of the controller which uses the "oficial Particulars controller".
 	
-	def wait_for_trigger(self):
-		"""Blocks execution until there is a trigger in the oscilloscope."""
-		self._osc.wait_for_single_trigger()
-	
-	def get_waveform(self, channel: int):
-		"""Gets the waveform from the oscilloscope for the respective channel."""
-		return self._osc.get_waveform(channel=channel)
-	
-	def set_oscilloscope_vdiv(self, channel: int, vdiv: float):
-		"""Sets the osciloscope's Volts per division."""
-		self._osc.set_vdiv(channel, vdiv)
+	# Bias voltage power supply ----------------------------------------
 	
 	@property
 	def bias_voltage(self):
 		"""Returns the measured bias voltage."""
-		return self._keithley.measure_voltage()
+		with self._keithley_Lock:
+			return self._keithley.measure_voltage()
 	@bias_voltage.setter
 	def bias_voltage(self, volts):
 		"""Sets the bias voltage."""
-		self._keithley.set_source_voltage(volts)
+		with self._keithley_Lock:
+			self._keithley.set_source_voltage(volts)
 	
 	@property
 	def bias_current(self):
 		"""Returns the measured bias current."""
-		return self._keithley.measure_current()
+		with self._keithley_Lock:
+			return self._keithley.measure_current()
 	
 	@property
 	def current_compliance(self):
 		"""Returns the current limit of the voltage source."""
-		return self._keithley.current_limit
-	
+		with self._keithley_Lock:
+			return self._keithley.current_limit
 	@current_compliance.setter
 	def current_compliance(self, amperes):
 		"""Sets the current compliance."""
-		self._keithley.current_limit = amperes
+		with self._keithley_Lock:
+			self._keithley.current_limit = amperes
 	
-	def configure_oscilloscope_for_two_pulses(self):
+	@property
+	def bias_output_status(self):
+		"""Returns either 'on' or 'off'."""
+		with self._keithley_Lock:
+			return self._keithley.output
+	@bias_output_status.setter
+	def bias_output_status(self, status: str):
+		"""Set the bias output either 'on' or 'off'."""
+		with self._keithley_Lock:
+			self._keithley.output = status
+	
+	# Oscilloscope -----------------------------------------------------
+	
+	def configure_oscilloscopeilloscope_for_two_pulses(self):
 		"""Configures the horizontal scale and trigger of the oscilloscope to properly acquire two pulses."""
-		self._osc.set_trig_source('ext')
-		self._osc.set_trig_level('ext', -50e-3)
-		self._osc.set_trig_coupling('ext', 'DC')
-		self._osc.set_trig_slope('ext', 'negative')
-		self._osc.set_tdiv('20ns')
-		self._osc.set_trig_delay(-20e-9)
-
+		with self._oscilloscope_Lock:
+			self._oscilloscope.set_trig_source('ext')
+			self._oscilloscope.set_trig_level('ext', -50e-3)
+			self._oscilloscope.set_trig_coupling('ext', 'DC')
+			self._oscilloscope.set_trig_slope('ext', 'negative')
+			self._oscilloscope.set_tdiv('20ns')
+			self._oscilloscope.set_trig_delay(-20e-9)
+	
+	def wait_for_trigger(self):
+		"""Blocks execution until there is a trigger in the oscilloscope."""
+		with self._oscilloscope_Lock:
+			self._oscilloscope.wait_for_single_trigger()
+	
+	def get_waveform(self, channel: int):
+		"""Gets the waveform from the oscilloscope for the respective channel."""
+		with self._oscilloscope_Lock:
+			return self._oscilloscope.get_waveform(channel=channel)
+	
+	def set_oscilloscopeilloscope_vdiv(self, channel: int, vdiv: float):
+		"""Sets the osciloscope's Volts per division."""
+		with self._oscilloscope_Lock:
+			self._oscilloscope.set_vdiv(channel, vdiv)
+	
+	# Temperature and humidity sensor ----------------------------------
+	
+	@property
+	def temperature(self):
+		"""Returns a reading of the temperature as a float number in Celsius."""
+		return self._temperature_controller.temperature
+	
+	@property
+	def humidity(self):
+		"""Returns a reading of the humidity as a float number in %RH."""
+		return self._temperature_controller.humidity
+	
 if __name__ == '__main__':
 	import time
 	
-	the_setup = TheSetup()
+	the_setup = TheSetup(
+		temperature_controller_Pyro_uri = 'PYRO:temperature_controller@0.0.0.0:41995',
+	)
 	
-	the_setup.laser_status = 'on'
-	the_setup.laser_DAC = 1555
-	print('Seting vias boltage;;;')
-	the_setup.bias_voltage = 99
-	print(f'Bias voltage = {the_setup.bias_voltage} V')
-	the_setup.configure_oscilloscope_for_two_pulses()
-	
-	input('Exit?')
+	print(f'Temperature = {the_setup.temperature:.2f} °C, humidity = {the_setup.humidity:.2f} %RH')
+
