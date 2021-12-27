@@ -10,10 +10,11 @@ import threading
 class TheSetup:
 	"""This class wraps all the hardware so if there are changes it is easy to adapt."""
 	def __init__(self, safe_mode=True):
+		"""safe_mode: Turns laser and high voltage off when your Python instance is finished using `atexit`. Temperature is not touched."""
 		self._oscilloscope = TeledyneLeCroyPy.LeCroyWaveRunner(pyvisa.ResourceManager().open_resource('USB0::1535::4131::2810N60091::0::INSTR'))
 		self._tct = PyticularsTCT.TCT()
 		self._keithley = Keithley2470SafeForLGADs('USB0::1510::9328::04481179::0::INSTR', polarity = 'negative')
-		self._temperature_controller = Proxy('PYRO:temperature_controller@0.0.0.0:36907')
+		self._temperature_controller = Proxy('PYRO:temperature_controller@0.0.0.0:41995')
 		
 		# Threading locks ---
 		self._oscilloscope_Lock = threading.RLock()
@@ -62,12 +63,12 @@ class TheSetup:
 	def laser_DAC(self):
 		"""Returns the laser DAC value."""
 		with self._tct_Lock:
-			return self._tct.laser.DAC
+			return int(self._tct.laser.DAC*3300/2**10) # The conversion is for compatibility with the previous version of the controller which uses the "oficial Particulars controller".
 	@laser_DAC.setter
 	def laser_DAC(self, value):
 		"""Set the value of the DAC for the laser."""
 		with self._tct_Lock:
-			self._tct.laser.DAC = value
+			self._tct.laser.DAC = int(value*2**10/3300) # The conversion is for compatibility with the previous version of the controller which uses the "oficial Particulars controller".
 	
 	# Bias voltage power supply ----------------------------------------
 	
