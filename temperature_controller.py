@@ -34,8 +34,8 @@ class TemperatureController:
 			raise TypeError(f'`temperature_high_limit` must be a number, received {repr(temperature_high_limit)} of type {type(temperature_high_limit)}.')
 		if temperature_low_limit >= temperature_high_limit:
 			raise ValueError(f'`temperature_low_limit` must be less than `temperature_high_limit`.')
-		self.temperature_low_limit = temperature_low_limit
-		self.temperature_high_limit = temperature_high_limit
+		self._temperature_low_limit = temperature_low_limit
+		self._temperature_high_limit = temperature_high_limit
 		
 		def at_exit():
 			self.stop()
@@ -110,6 +110,32 @@ class TemperatureController:
 	def status(self):
 		"""Returns 'on' or 'off'."""
 		return self._temperature_control_status if hasattr(self, '_temperature_control_status') else 'off' # Start off by default.
+	
+	@property
+	def temperature_low_limit(self):
+		"""Return the current temperature low limit."""
+		return self._temperature_low_limit
+	@temperature_low_limit.setter
+	def temperature_low_limit(self, celsius):
+		"""Set the temperature low limit."""
+		if not isinstance(celsius, (int, float)):
+			raise TypeError(f'Must be a number, received {repr(celsius)} of type {type(celsius)}.')
+		if celsius > self.temperature_high_limit:
+			raise ValueError(f'The current `temperature_high_limit` is {self.temperature_high_limit}, cannot set `temperature_low_limit` to {celsius} which is higher than that.')
+		self._temperature_low_limit = celsius
+	
+	@property
+	def temperature_high_limit(self):
+		"""Return the current temperature high limit."""
+		return self._temperature_high_limit
+	@temperature_high_limit.setter
+	def temperature_high_limit(self, celsius):
+		"""Set the temperature high limit."""
+		if not isinstance(celsius, (int, float)):
+			raise TypeError(f'Must be a number, received {repr(celsius)} of type {type(celsius)}.')
+		if celsius < self.temperature_low_limit:
+			raise ValueError(f'The current `temperature_low_limit` is {self.temperature_low_limit}, cannot set `temperature_high_limit` to {celsius} which is lower than that.')
+		self._temperature_high_limit = celsius
 	
 	def stop(self):
 		"""Stops the controller and turn off everything related to the peltiers."""
