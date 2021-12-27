@@ -5,8 +5,16 @@ from time import sleep
 import atexit
 import threading
 from Pyro5.api import expose, behavior, serve
+from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
+from data_processing_bureaucrat.Bureaucrat import TelegramReportingInformation # Here I hide the token of my bot. Never make it public.
+import datetime
 
 PID_SAMPLE_TIME = 1
+TEMPERATURE_MONITORING_SLEEP_TIME = 5
+SLEEP_TIMES = [
+	PID_SAMPLE_TIME,
+	TEMPERATURE_MONITORING_SLEEP_TIME,
+]
 
 @expose
 @behavior(instance_mode="single")
@@ -29,7 +37,11 @@ class TemperatureController:
 			self.stop()
 			sleep(.5) # Transcient...
 			print(f'Peltier array is: {repr(self.peltier_status)}. I_peltier = {self.peltier_measured_current:.2f} A, V_peltier = {self.peltier_measured_voltage:.2f} V.')
+			self._is_monitor_temperature_overheat = False
+			sleep(max(SLEEP_TIMES)*1.1) # So the threads have time to finish.
 		atexit.register(at_exit)
+		
+		self.start_temperature_monitoring_overheat()
 	
 	# Temperature and humidity sensor ----------------------------------
 	
@@ -118,7 +130,7 @@ class TemperatureController:
 		temperature_control_thread = threading.Thread(target=temperature_control_thread_function)
 		temperature_control_thread.start()
 	
-	def report(self):
+	def get_status_summary(self):
 		report_string = ''
 		report_string += f'Controller status: {repr(self.status)}'
 		report_string += '\n'
@@ -126,15 +138,46 @@ class TemperatureController:
 		report_string += '\n'
 		report_string += f'Peltier = {repr(self.peltier_status)}, I_measured = {self.peltier_measured_current:.2f} A | V_measured = {self.peltier_measured_voltage:.2f} V'
 		return report_string
-
+	
+	def start_temperature_monitoring_overheat(self):
+		def _temperature_monitoring_overheat_thread_function():
+			telegram_reporter = TelegramReporter(
+				telegram_token = TelegramReportingInformation().token, # Here I store the token of my bot hidden, never make it public.
+				telegram_chat_id = TelegramReportingInformation().chat_id,
+			)
+			response = telegram_reporter.send_message('Initializing temperature monitoring system...')
+			message_id = response['result']['message_id']
+			while self._is_monitor_temperature_overheat == True:
+				cadena = f'TCT temperature controller 🌡️\n'
+				cadena += f'Status: {repr(self.status)}\n'
+				cadena += f'T_set = {self.temperature_setpoint:.2f} °C\n'
+				cadena += f'T_meas = {self.temperature:.2f} °C\n'
+				cadena += f'Peltier = {repr(self.peltier_status)}, I = {self.peltier_measured_current:.2f} A | V = {self.peltier_measured_voltage:.2f} V\n'
+				cadena += f'\nLast update: {datetime.datetime.now()}'
+				telegram_reporter.edit_message(
+					cadena,
+					message_id = message_id,
+				)
+				sleep(TEMPERATURE_MONITORING_SLEEP_TIME)
+			telegram_reporter.edit_message(
+				f'Finished...',
+				message_id = message_id,
+			)
+		temperature_monitoring_thread = threading.Thread(target=_temperature_monitoring_overheat_thread_function)
+		self._is_monitor_temperature_overheat = True
+		temperature_monitoring_thread.start()
+	
 def run_as_daemon():
 	# https://stackoverflow.com/questions/656933/communicating-with-a-running-python-daemon
 	serve(
 		{
 			TemperatureController: 'temperature_controller'
 		},
-		use_ns = False,
+		use_ns = False, # Would be nice to set this to True but I am getting an error...
 	)
 
 if __name__ == "__main__":
 	run_as_daemon()
+	# ~ c = TemperatureController()
+	# ~ while True:
+		# ~ sleep(1)
