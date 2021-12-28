@@ -116,7 +116,7 @@ class TheSetup:
 	
 	# Oscilloscope -----------------------------------------------------
 	
-	def configure_oscilloscopeilloscope_for_two_pulses(self):
+	def configure_oscilloscope_for_two_pulses(self):
 		"""Configures the horizontal scale and trigger of the oscilloscope to properly acquire two pulses."""
 		with self._oscilloscope_Lock:
 			self._oscilloscope.set_trig_source('ext')
@@ -136,7 +136,7 @@ class TheSetup:
 		with self._oscilloscope_Lock:
 			return self._oscilloscope.get_waveform(channel=channel)
 	
-	def set_oscilloscopeilloscope_vdiv(self, channel: int, vdiv: float):
+	def set_oscilloscope_vdiv(self, channel: int, vdiv: float):
 		"""Sets the osciloscope's Volts per division."""
 		with self._oscilloscope_Lock:
 			self._oscilloscope.set_vdiv(channel, vdiv)
