@@ -161,6 +161,19 @@ class TemperatureController:
 		temperature_control_thread = threading.Thread(target=temperature_control_thread_function)
 		temperature_control_thread.start()
 	
+	def start_cooling_sequence(self):
+		print('Starting cooling sequence... Please wait until I tell you it is ready to use!')
+		self.temperature_setpoint = 5
+		self.start()
+		print(f'Cooling down to {self.temperature_setpoint} °C and waiting humidity to decrease...')
+		while self.temperature > self.temperature_setpoint+1 or self.humidity > 5:
+			sleep(1)
+		self.temperature_setpoint = -20
+		print(f'Cooling down to {self.temperature_setpoint} °C...')
+		while self.temperature > -20:
+			sleep(1)
+		print(f'Temperature is {self.temperature} °C. You can start using the system :)')
+	
 	def get_status_summary(self):
 		"""Return a string for quick checking the status of the system."""
 		report_string = ''
@@ -224,24 +237,6 @@ def run_as_daemon():
 if __name__ == "__main__":
 	from Pyro5.api import Proxy
 	
-	def start_controller_thread_function():
-		sleep(1)
-		controller = Proxy(input('uri? '))
-		print('Please wait until I tell you it is ready to use!')
-		controller.temperature_setpoint = 5
-		controller.start()
-		print(f'Cooling down to {controller.temperature_setpoint} °C and waiting humidity to decrease...')
-		while controller.temperature > controller.temperature_setpoint+1 or controller.humidity > 5:
-			sleep(1)
-		controller.temperature_setpoint = -20
-		print(f'Cooling down to {controller.temperature_setpoint} °C...')
-		while controller.temperature > -20:
-			sleep(1)
-		print(f'Temperature is {controller.temperature} °C. You can start using the system :)')
-	
-	
-	config_thread = threading.Thread(target=start_controller_thread_function)
-	config_thread.start()
 	run_as_daemon()
 	# ~ c = TemperatureController(temperature_low_limit=18)
 	# ~ c.temperature_setpoint = 15
