@@ -9,6 +9,7 @@ from plotting_scripts.plot_everything_from_1D_scan import script_core as plot_ev
 import pandas
 import datetime
 from utils import DataFrameDumper
+import tct_scripts_config
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
 
@@ -30,10 +31,14 @@ def wait_for_nice_trigger_without_EMI(the_setup, channels: list):
 				break
 			_amplitude = np.array(_raw['Amplitude (V)'])
 			_time = np.array(_raw['Time (s)'])
-			samples_where_we_shoud_have_no_signal = _amplitude[(_time<220e-9)|((_time>250e-9)&(_time<320e-9))]
+			# ~ fig = grafica.new()
+			# ~ fig.scatter(y=_amplitude, x=_time)
+			# ~ fig.save(str(tct_scripts_config.DATA_STORAGE_DIRECTORY_PATH/Path('plot.html')))
+			# ~ input('Figure has been saved...')
+			samples_where_we_shoud_have_no_signal = _amplitude[(_time<190e-9)|((_time>250e-9)&(_time<290e-9))]
 			this_channel_noise = np.std(samples_where_we_shoud_have_no_signal)
 			noise_per_channel.append(this_channel_noise)
-		if all(noise < 10e-3 for noise in noise_per_channel):
+		if all(noise < 5e-3 for noise in noise_per_channel):
 			is_noisy = False
 		else:
 			print('Noisy trigger! Will skip it...')
@@ -50,7 +55,7 @@ def script_core(
 		external_Telegram_reporter=None,
 	):
 	bureaucrat = Bureaucrat(
-		str(Path(f'C:/Users/tct_cms/Desktop/TCT_measurements_data/{measurement_name}')),
+		str(tct_scripts_config.DATA_STORAGE_DIRECTORY_PATH/Path(measurement_name)),
 		variables = locals(),
 		new_measurement = True,
 	)
@@ -64,6 +69,7 @@ def script_core(
 	
 	print('Setting bias voltage...')
 	the_setup.bias_voltage = bias_voltage
+	the_setup.bias_output_status = 'on'
 	
 	data_frame_columns = ['n_position','n_trigger','n_channel','n_pulse']
 	data_frame_columns += ['x (m)','y (m)','z (m)','When','Bias voltage (V)','Bias current (A)','Laser DAC']
