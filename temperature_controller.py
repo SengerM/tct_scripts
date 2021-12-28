@@ -222,6 +222,19 @@ def run_as_daemon():
 	)
 
 if __name__ == "__main__":
+	from Pyro5.api import Proxy
+	
+	def start_controller_thread_function():
+		sleep(1)
+		controller = Proxy(input('uri? '))
+		controller.start()
+		controller.temperature_setpoint = -20
+		print(f'Cooling system... Please wait until I tell you it is ready to use!')
+		while controller.temperature > -20:
+			sleep(1)
+		print(f'Temperature is {controller.temperature} °C. You can start using the system :)')
+	config_thread = threading.Thread(target=start_controller_thread_function)
+	config_thread.start()
 	run_as_daemon()
 	# ~ c = TemperatureController(temperature_low_limit=18)
 	# ~ c.temperature_setpoint = 15
