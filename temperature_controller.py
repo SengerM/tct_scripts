@@ -191,7 +191,7 @@ class TemperatureController:
 		def _temperature_monitoring_overheat_thread_function():
 			telegram_reporter = TelegramReporter(
 				telegram_token = TelegramReportingInformation().token, # Here I store the token of my bot hidden, never make it public.
-				telegram_chat_id = TelegramReportingInformation().chat_id,
+				telegram_chat_id = '-785084808',
 			)
 			response = telegram_reporter.send_message('Initializing temperature monitoring system...')
 			message_id = response['result']['message_id']
