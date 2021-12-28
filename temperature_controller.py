@@ -227,12 +227,19 @@ if __name__ == "__main__":
 	def start_controller_thread_function():
 		sleep(1)
 		controller = Proxy(input('uri? '))
+		print('Please wait until I tell you it is ready to use!')
+		controller.temperature_setpoint = 5
 		controller.start()
+		print(f'Cooling down to {controller.temperature_setpoint} °C and waiting humidity to decrease...')
+		while controller.temperature > controller.temperature_setpoint+1 or controller.humidity > 5:
+			sleep(1)
 		controller.temperature_setpoint = -20
-		print(f'Cooling system... Please wait until I tell you it is ready to use!')
+		print(f'Cooling down to {controller.temperature_setpoint} °C...')
 		while controller.temperature > -20:
 			sleep(1)
 		print(f'Temperature is {controller.temperature} °C. You can start using the system :)')
+	
+	
 	config_thread = threading.Thread(target=start_controller_thread_function)
 	config_thread.start()
 	run_as_daemon()
