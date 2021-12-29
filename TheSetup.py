@@ -6,10 +6,11 @@ from Pyro5.api import Proxy
 import atexit
 from time import sleep
 import threading
+import tct_scripts_config
 
 class TheSetup:
 	"""This class wraps all the hardware so if there are changes it is easy to adapt."""
-	def __init__(self, temperature_controller_Pyro_uri:str, safe_mode=True):
+	def __init__(self, temperature_controller_Pyro_uri:str=tct_scripts_config.TEMPERATURE_CONTROLLER_URI, safe_mode=True):
 		"""
 		- temperature_controller_Pyro_uri: The URI provided by the Pyro daemon when running the temperature controller.
 		- safe_mode: Turns laser and high voltage off when your Python instance is finished using `atexit`. Temperature is not touched.
@@ -66,12 +67,12 @@ class TheSetup:
 	def laser_DAC(self):
 		"""Returns the laser DAC value."""
 		with self._tct_Lock:
-			return int(self._tct.laser.DAC*3300/2**10) # The conversion is for compatibility with the previous version of the controller which uses the "oficial Particulars controller".
+			return self._tct.laser.DAC
 	@laser_DAC.setter
 	def laser_DAC(self, value):
 		"""Set the value of the DAC for the laser."""
 		with self._tct_Lock:
-			self._tct.laser.DAC = int(value*2**10/3300) # The conversion is for compatibility with the previous version of the controller which uses the "oficial Particulars controller".
+			self._tct.laser.DAC = value
 	
 	# Bias voltage power supply ----------------------------------------
 	
@@ -120,11 +121,11 @@ class TheSetup:
 		"""Configures the horizontal scale and trigger of the oscilloscope to properly acquire two pulses."""
 		with self._oscilloscope_Lock:
 			self._oscilloscope.set_trig_source('ext')
-			self._oscilloscope.set_trig_level('ext', -50e-3)
+			self._oscilloscope.set_trig_level('ext', -175e-3) # Totally empiric.
 			self._oscilloscope.set_trig_coupling('ext', 'DC')
 			self._oscilloscope.set_trig_slope('ext', 'negative')
 			self._oscilloscope.set_tdiv('20ns')
-			self._oscilloscope.set_trig_delay(-20e-9)
+			self._oscilloscope.set_trig_delay(28e-9) # Totally empiric.
 	
 	def wait_for_trigger(self):
 		"""Blocks execution until there is a trigger in the oscilloscope."""
