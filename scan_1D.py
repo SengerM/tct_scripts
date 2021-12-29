@@ -13,36 +13,6 @@ import tct_scripts_config
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
 
-def wait_for_nice_trigger_without_EMI(the_setup, channels: list):
-	is_noisy = True
-	while is_noisy:
-		try:
-			the_setup.wait_for_trigger()
-		except Exception as e:
-			print(f'Error while waiting for trigger, reason: {repr(e)}...')
-			sleep(1)
-			continue
-		noise_per_channel = []
-		for ch in channels:
-			try:
-				_raw = the_setup.get_waveform(channel=ch)
-			except Exception as e:
-				print(f'Cannot get data from oscilloscope, reason: {e}')
-				break
-			_amplitude = np.array(_raw['Amplitude (V)'])
-			_time = np.array(_raw['Time (s)'])
-			# ~ fig = grafica.new()
-			# ~ fig.scatter(y=_amplitude, x=_time)
-			# ~ fig.save(str(tct_scripts_config.DATA_STORAGE_DIRECTORY_PATH/Path('plot.html')))
-			# ~ input('Figure has been saved...')
-			samples_where_we_shoud_have_no_signal = _amplitude[(_time<190e-9)|((_time>250e-9)&(_time<290e-9))]
-			this_channel_noise = np.std(samples_where_we_shoud_have_no_signal)
-			noise_per_channel.append(this_channel_noise)
-		if all(noise < 5e-3 for noise in noise_per_channel):
-			is_noisy = False
-		else:
-			print('Noisy trigger! Will skip it...')
-
 def script_core(
 		measurement_name: str, 
 		bias_voltage: float,
@@ -72,7 +42,7 @@ def script_core(
 	the_setup.bias_output_status = 'on'
 	
 	data_frame_columns = ['n_position','n_trigger','n_channel','n_pulse']
-	data_frame_columns += ['x (m)','y (m)','z (m)','When','Bias voltage (V)','Bias current (A)','Laser DAC']
+	data_frame_columns += ['x (m)','y (m)','z (m)','When','Bias voltage (V)','Bias current (A)','Laser DAC','Temperature (°C)','Humidity (%RH)']
 	data_frame_columns += ['Amplitude (V)','Noise (V)','Rise time (s)','Collected charge (V s)','Time over noise (s)']
 	for pp in TIMES_AT:
 		data_frame_columns += [f't_{pp} (s)']
@@ -96,7 +66,7 @@ def script_core(
 			for n_trigger in range(n_triggers):
 				plot_this_trigger = np.random.rand() < 20/(len(positions)*n_triggers)
 				print(f'Measuring: n_position={n_position}/{len(positions)-1}, n_trigger={n_trigger}/{n_triggers-1}...')
-				wait_for_nice_trigger_without_EMI(the_setup, acquire_channels)
+				utils.wait_for_nice_trigger_without_EMI(the_setup, acquire_channels)
 				for n_channel in acquire_channels:
 					try:
 						raw_data = the_setup.get_waveform(channel = n_channel)
@@ -135,6 +105,8 @@ def script_core(
 							'Bias voltage (V)': the_setup.bias_voltage if measure_bias_IV_in_this_iteration else float('NaN'),
 							'Bias current (A)': the_setup.bias_current if measure_bias_IV_in_this_iteration else float('NaN'),
 							'Laser DAC': the_setup.laser_DAC,
+							'Temperature (°C)': the_setup.temperature,
+							'Humidity (%RH)': the_setup.humidity,
 							'Amplitude (V)': signal.amplitude,
 							'Noise (V)': signal.noise,
 							'Rise time (s)': signal.rise_time,

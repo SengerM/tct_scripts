@@ -4,6 +4,7 @@ import pandas
 import atexit
 import shutil
 import numpy as np
+import tct_scripts_config
 
 class DataFrameDumper:
 	"""This class is for easilly store a continuously growing dataframe
@@ -108,3 +109,44 @@ def interlace(lst):
 			result.append(lst[middle])
 			ranges += (start, middle), (middle + 1, stop)
 	return result
+
+def get_center_position_from_file():
+	if tct_scripts_config.CURRENT_DETECTOR_CENTER_FILE_PATH.is_file():
+		with open(tct_scripts_config.CURRENT_DETECTOR_CENTER_FILE_PATH, 'r') as ifile:
+			center = {}
+			for line in ifile:
+				center[line.split('=')[0].replace(' ','')] = float(line.split('=')[-1])
+		return tuple([center[k] for k in sorted(center.keys())]) # Sorted x y z
+	
+def wait_for_nice_trigger_without_EMI(the_setup, channels: list):
+	is_noisy = True
+	while is_noisy:
+		try:
+			the_setup.wait_for_trigger()
+		except Exception as e:
+			print(f'Error while waiting for trigger, reason: {repr(e)}...')
+			sleep(1)
+			continue
+		noise_per_channel = []
+		for ch in channels:
+			try:
+				_raw = the_setup.get_waveform(channel=ch)
+			except Exception as e:
+				print(f'Cannot get data from oscilloscope, reason: {e}')
+				break
+			_amplitude = np.array(_raw['Amplitude (V)'])
+			_time = np.array(_raw['Time (s)'])
+			# ~ # For debug ---
+			# ~ import grafica
+			# ~ fig = grafica.new()
+			# ~ fig.scatter(y=_amplitude, x=_time)
+			# ~ fig.save(str(tct_scripts_config.DATA_STORAGE_DIRECTORY_PATH/Path('plot.html')))
+			# ~ input('Figure has been saved...')
+			# ~ # -------------
+			samples_where_we_shoud_have_no_signal = _amplitude[(_time<190e-9)|((_time>240e-9)&(_time<290e-9))] # Totally empiric numbers, the "debug lines" just before are to find this.
+			this_channel_noise = np.std(samples_where_we_shoud_have_no_signal)
+			noise_per_channel.append(this_channel_noise)
+		if all(noise < 5e-3 for noise in noise_per_channel):
+			is_noisy = False
+		else:
+			print('Noisy trigger! Will skip it...')
