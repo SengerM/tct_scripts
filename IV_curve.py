@@ -7,6 +7,7 @@ import plotly.express as px
 import datetime
 from utils import DataFrameDumper
 from grafica.plotly_utils.utils import line
+import tct_scripts_config
 
 def script_core(
 	directory, # Where to store the measured data. A new directory will be created.
@@ -27,7 +28,8 @@ def script_core(
 	current_current_compliance = the_setup.current_compliance
 	try:
 		the_setup.current_compliance = current_compliance_amperes
-		measured_data_df = pandas.DataFrame(columns = {'n_voltage','n_trigger','When','Bias voltage (V)','Bias current (A)'})
+		the_setup.bias_output_status = 'on'
+		measured_data_df = pandas.DataFrame(columns = {'n_voltage','n_trigger','When','Bias voltage (V)','Bias current (A)','Temperature (°C)','Humidity (%RH)'})
 		measured_data_df_dumper = DataFrameDumper(
 			bureaucrat.processed_data_dir_path/Path('measured_data.fd'),
 			measured_data_df,
@@ -45,6 +47,8 @@ def script_core(
 						'When': datetime.datetime.now(),
 						'Bias voltage (V)': the_setup.bias_voltage,
 						'Bias current (A)': the_setup.bias_current,
+						'Temperature (°C)': the_setup.temperature,
+						'Humidity (%RH)': the_setup.humidity,
 					},
 					ignore_index = True,
 				)
@@ -74,12 +78,12 @@ def script_core(
 if __name__ == '__main__':
 	import numpy as np
 	
-	VOLTAGES = np.linspace(0,555,11)
+	VOLTAGES = np.linspace(0,555,111)
 	
-	current_compliance = 1e-6
+	current_compliance = 10e-6
 	
 	script_core(
-		directory = Path('C:/Users/tct_cms/Desktop/IV_curves')/Path(input('Measurement name? ').replace(' ','_')),
+		directory = tct_scripts_config.DATA_STORAGE_DIRECTORY_PATH/Path(input('Measurement name? ').replace(' ','_')),
 		voltages = list(VOLTAGES) + list(VOLTAGES)[::-1],
 		current_compliance_amperes = current_compliance,
 		n_triggers = 2,
