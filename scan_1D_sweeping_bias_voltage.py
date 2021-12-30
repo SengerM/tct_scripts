@@ -12,9 +12,9 @@ import tct_scripts_config
 
 OSCILLOSCOPE_CHANNELS = [1,2]
 LASER_DAC = 573
-N_TRIGGERS_PER_POSITION = 2
-BIAS_VOLTAGES = np.linspace(55,500,9)
-STEP_SIZE = 11e-6
+N_TRIGGERS_PER_POSITION = 55
+BIAS_VOLTAGES = np.linspace(55,500,22)
+STEP_SIZE = 1e-6
 SWEEP_LENGTH = 333e-6
 
 with open(tct_scripts_config.CURRENT_DETECTOR_CENTER_FILE_PATH, 'r') as ifile:
@@ -52,7 +52,13 @@ with reporter.report_for_loop(len(x_positions)*N_TRIGGERS_PER_POSITION*len(BIAS_
 	with open(bureaucrat.processed_data_dir_path/Path(f'README.txt'),'w') as ofile:
 		print(f'This measurement created automatically all the following measurements:',file=ofile)
 	for idx, bias_voltage in enumerate(BIAS_VOLTAGES):
-		utils.adjust_oscilloscope_vdiv_for_TILGAD(the_setup=the_setup, laser_DAC=LASER_DAC, bias_voltage=bias_voltage, oscilloscope_channels=OSCILLOSCOPE_CHANNELS, positions=positions)
+		utils.adjust_oscilloscope_vdiv_for_TILGAD(
+			the_setup = the_setup, 
+			laser_DAC = LASER_DAC, 
+			bias_voltage = bias_voltage, 
+			oscilloscope_channels = OSCILLOSCOPE_CHANNELS, 
+			positions = positions,
+		)
 		measurement_base_path = scan_1D(
 			measurement_name = f'{device_name}_1DScan_{bias_voltage}V',
 			the_setup = the_setup,
