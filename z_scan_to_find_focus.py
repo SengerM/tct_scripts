@@ -7,7 +7,7 @@ from data_processing_bureaucrat.Bureaucrat import Bureaucrat # https://github.co
 import tct_scripts_config
 from grafica.plotly_utils.utils import line as grafica_line
 
-STEP_SIZE = 25e-6
+STEP_SIZE = 22e-6
 SWEEP_LENGTH = 8e-3/5
 CHANNEL = 2
 
@@ -15,21 +15,15 @@ the_setup = TheSetup(
 	temperature_controller_Pyro_uri = tct_scripts_config.TEMPERATURE_CONTROLLER_URI,
 )
 
-if tct_scripts_config.CURRENT_DETECTOR_CENTER_FILE_PATH.is_file():
-	with open(tct_scripts_config.CURRENT_DETECTOR_CENTER_FILE_PATH, 'r') as ifile:
-		center = {}
-		for line in ifile:
-			center[line.split('=')[0].replace(' ','')] = float(line.split('=')[-1])
-	center = tuple([center[k] for k in sorted(center.keys())]) # Sorted x y z
-else:
-	center = the_setup.position
+with open(tct_scripts_config.CURRENT_DETECTOR_CENTER_FILE_PATH, 'r') as ifile:
+	center = {}
+	for line in ifile:
+		center[line.split('=')[0].replace(' ','')] = float(line.split('=')[-1])
+center = tuple([center[k] for k in sorted(center.keys())]) # Sorted x y z
 print(f'Current position is {the_setup.position}.')
-position_where_to_scan_z = np.array(center) + 50e-6*np.array((1,-1,0))/2**.5 + 20e-6*np.array((1,1,0))
+position_where_to_scan_z = np.array(center) + 55e-6*np.array((1,-1,0))/2**.5 + 22e-6/2**.5*np.array((1,1,0))
 print(f'Will move to {position_where_to_scan_z}.')
 the_setup.move_to(*position_where_to_scan_z)
-
-the_setup.laser_status = 'on'
-the_setup.bias_voltage = 25
 
 current_position = the_setup.position
 
@@ -40,18 +34,18 @@ y_positions = z_positions*0 + current_position[1]
 measurement_base_path = linear_scan(
 	measurement_name = input('Measurement name? ').replace(' ', '_'),
 	the_setup = the_setup,
-	bias_voltage = 33,
-	laser_DAC = 0,
+	bias_voltage = 333,
+	laser_DAC = 573,
 	positions = list(zip(x_positions,y_positions,z_positions)),
-	n_triggers = 22,
+	n_triggers = 33,
 	acquire_channels = [CHANNEL],
 )
 
 bureaucrat = Bureaucrat(
-		str(Path(measurement_base_path)),
-		variables = locals(),
-		new_measurement = False,
-	)
+	str(Path(measurement_base_path)),
+	variables = locals(),
+	new_measurement = False,
+)
 
 data_df = pandas.read_feather(bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('measured_data.fd'))
 
