@@ -8,7 +8,7 @@ from pathlib import Path
 from plotting_scripts.plot_everything_from_1D_scan import script_core as plot_everything_from_1D_scan
 import pandas
 import datetime
-from utils import DataFrameDumper
+import utils
 import tct_scripts_config
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
@@ -54,8 +54,8 @@ def script_core(
 	)
 	average_waveforms_df = pandas.DataFrame(columns={'n_position','n_channel','n_pulse','Amplitude mean (V)','Amplitude std (V)','Time (s)'})
 	
-	measured_data_df_dumper = DataFrameDumper(bureaucrat.processed_data_dir_path/Path('measured_data.fd'), measured_data_df)
-	waveforms_df_dumper = DataFrameDumper(bureaucrat.processed_data_dir_path/Path('average_waveforms.fd'), average_waveforms_df)
+	measured_data_df_dumper = utils.DataFrameDumper(bureaucrat.processed_data_dir_path/Path('measured_data.fd'), measured_data_df)
+	waveforms_df_dumper = utils.DataFrameDumper(bureaucrat.processed_data_dir_path/Path('average_waveforms.fd'), average_waveforms_df)
 	
 	with reporter.report_for_loop(len(positions)*n_triggers, f'{bureaucrat.measurement_name}') as reporter:
 		for n_position, target_position in enumerate(positions):
