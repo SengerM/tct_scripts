@@ -8,17 +8,23 @@ from progressreporting.TelegramProgressReporter import TelegramReporter # https:
 import plotly.express as px
 import time
 import utils
+import tct_scripts_config
 
 OSCILLOSCOPE_CHANNELS = [1,2]
-LASER_DAC = 2000
-N_TRIGGERS_PER_POSITION = 44
-BIAS_VOLTAGES = np.linspace(55,250,9)
-STEP_SIZE = 1e-6
+LASER_DAC = 573
+N_TRIGGERS_PER_POSITION = 2
+BIAS_VOLTAGES = np.linspace(55,500,9)
+STEP_SIZE = 11e-6
 SWEEP_LENGTH = 333e-6
 
-X_MIDDLE = -3.9569140625000006e-3
-Y_MIDDLE = 0.32084960937499996e-3
-Z_FOCUS = 71.38287109375001e-3
+with open(tct_scripts_config.CURRENT_DETECTOR_CENTER_FILE_PATH, 'r') as ifile:
+	center = {}
+	for line in ifile:
+		center[line.split('=')[0].replace(' ','')] = float(line.split('=')[-1])
+center = tuple([center[k] for k in sorted(center.keys())]) # Sorted x y z
+X_MIDDLE = center[0]
+Y_MIDDLE = center[1]
+Z_FOCUS = center[2]
 x_positions = X_MIDDLE + np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))*np.sin(np.pi/4)
 y_positions = Y_MIDDLE - np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))*np.sin(np.pi/4)
 z_positions = Z_FOCUS + x_positions*0
@@ -31,7 +37,7 @@ the_setup = TheSetup()
 device_name = input('Device name? ').replace(' ','_')
 
 bureaucrat = Bureaucrat(
-	Path(f'C:/Users/tct_cms/Desktop/TCT_measurements_data')/Path(f'{device_name}_sweeping_bias_voltage'),
+	tct_scripts_config.DATA_STORAGE_DIRECTORY_PATH/Path(f'{device_name}_sweeping_bias_voltage'),
 	variables = locals(),
 	new_measurement = True,
 )
