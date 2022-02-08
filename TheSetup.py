@@ -10,15 +10,18 @@ import tct_scripts_config
 
 class TheSetup:
 	"""This class wraps all the hardware so if there are changes it is easy to adapt."""
-	def __init__(self, temperature_controller_Pyro_uri:str=tct_scripts_config.TEMPERATURE_CONTROLLER_URI, safe_mode=True):
+	def __init__(self, safe_mode=True):
 		"""
-		- temperature_controller_Pyro_uri: The URI provided by the Pyro daemon when running the temperature controller.
 		- safe_mode: Turns laser and high voltage off when your Python instance is finished using `atexit`. Temperature is not touched.
 		"""
 		self._oscilloscope = TeledyneLeCroyPy.LeCroyWaveRunner(pyvisa.ResourceManager().open_resource('USB0::1535::4131::2810N60091::0::INSTR'))
-		self._tct = PyticularsTCT.TCT()
+		self._tct = PyticularsTCT.TCT(
+			x_stage_port = '/dev/ttyACM3',
+			y_stage_port = '/dev/ttyACM2',
+			z_stage_port = '/dev/ttyACM1',
+		)
 		self._keithley = Keithley2470SafeForLGADs('USB0::1510::9328::04481179::0::INSTR', polarity = 'negative')
-		self._temperature_controller = Proxy(temperature_controller_Pyro_uri)
+		self._temperature_controller = Proxy(tct_scripts_config.TEMPERATURE_CONTROLLER_URI)
 		
 		# Threading locks ---
 		self._oscilloscope_Lock = threading.RLock()
@@ -125,7 +128,7 @@ class TheSetup:
 			self._oscilloscope.set_trig_coupling('ext', 'DC')
 			self._oscilloscope.set_trig_slope('ext', 'negative')
 			self._oscilloscope.set_tdiv('20ns')
-			self._oscilloscope.set_trig_delay(28e-9) # Totally empiric.
+			self._oscilloscope.set_trig_delay(-43e-9) # Totally empiric.
 	
 	def wait_for_trigger(self):
 		"""Blocks execution until there is a trigger in the oscilloscope."""
