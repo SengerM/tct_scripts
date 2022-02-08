@@ -67,40 +67,48 @@ def adjust_oscilloscope_vdiv_for_TILGAD(the_setup, laser_DAC, bias_voltage, osci
 	the_setup.laser_status = 'on'
 	print(f'Setting bias voltage to {bias_voltage} V...')
 	the_setup.bias_voltage = bias_voltage
+	the_setup.bias_output_status = 'on'
 	current_vdiv = 1e-3 # Start with the smallest scale.
 	for channel in oscilloscope_channels:
 		the_setup.set_oscilloscope_vdiv(channel, current_vdiv)
 	for position_idx,position in enumerate([positions[int(len(positions)*2/5)],positions[int(len(positions)*3/5)]]): # One position is left pix, the other is right pix.
 		the_setup.move_to(*position) # Left pixel position.
 		n_signals_without_NaN = 0
-		NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE = 222
+		NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE = 9
 		while n_signals_without_NaN < NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE:
-			the_setup.wait_for_trigger()
+			try:
+				the_setup.wait_for_trigger()
+			except Exception as e:
+				print(f'I was `waiting for trigger` when this error happened: {repr(e)}.')
+				print(f'I will start again at n_signals_without_NaN={n_signals_without_NaN}...')
+				continue
 			volts = {}
-			error_in_acquisition = False
 			for n_channel in oscilloscope_channels:
 				try:
 					raw_data = the_setup.get_waveform(channel = n_channel)
 				except Exception as e:
 					print(f'Cannot get data from oscilloscope, reason: {e}')
-					error_in_acquisition = True
+					print(f'I will start again at n_signals_without_NaN={n_signals_without_NaN}...')
+					continue
 				volts[n_channel] = raw_data['Amplitude (V)']
-			if error_in_acquisition:
-				print(f'Will skip this cycle and try to acquire again...')
-				continue
 			if any(np.isnan(sum(volts[ch])) for ch in volts): # This means the scale is still too small.
 				n_signals_without_NaN = 0
 				current_vdiv *= 1.1
 				print(f'Scale is still too small, increasing to {current_vdiv} V/div')
 				for channel in oscilloscope_channels:
-					the_setup.set_oscilloscope_vdiv(channel, current_vdiv)
+					try:
+						the_setup.set_oscilloscope_vdiv(channel, current_vdiv)
+					except Exception as e:
+						print(f'Could not change oscilloscope`s VDIV, reason is {repr(e)}.')
+						print(f'I will start again at n_signals_without_NaN={n_signals_without_NaN}...')
+						continue
 			else:
 				print(f'{n_signals_without_NaN+1} out of {NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE} signals without NaN, scale seems to be fine!')
 				n_signals_without_NaN += 1
 
 def interlace(lst):
 	# https://en.wikipedia.org/wiki/Interlacing_(bitmaps)
-	lst = sorted(lst)
+	lst = sorted(lst)[::-1]
 	result = [lst[0], lst[-1]]
 	ranges = [(1, len(lst) - 1)]
 	for start, stop in ranges:
@@ -146,7 +154,7 @@ def wait_for_nice_trigger_without_EMI(the_setup, channels: list):
 			samples_where_we_shoud_have_no_signal = _amplitude[(_time<190e-9)|((_time>240e-9)&(_time<290e-9))] # Totally empiric numbers, the "debug lines" just before are to find this.
 			this_channel_noise = np.std(samples_where_we_shoud_have_no_signal)
 			noise_per_channel.append(this_channel_noise)
-		if all(noise < 5e-3 for noise in noise_per_channel):
+		if all(noise < 10e-3 for noise in noise_per_channel):
 			is_noisy = False
 		else:
 			print('Noisy trigger! Will skip it...')
