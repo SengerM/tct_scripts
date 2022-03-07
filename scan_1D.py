@@ -1,7 +1,6 @@
 import numpy as np
 from time import sleep
-import grafica # https://github.com/SengerM/grafica
-from lgadtools.LGADSignal import LGADSignal # https://github.com/SengerM/lgadtools
+from signals.PeakSignal import PeakSignal, draw_in_plotly # https://github.com/SengerM/signals
 from data_processing_bureaucrat.Bureaucrat import Bureaucrat, TelegramReportingInformation # https://github.com/SengerM/data_processing_bureaucrat
 from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
 from pathlib import Path
@@ -10,6 +9,7 @@ import pandas
 import datetime
 import utils
 import tct_scripts_config
+import plotly.graph_objects as go
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
 
@@ -29,6 +29,8 @@ def script_core(
 		variables = locals(),
 		new_measurement = True,
 	)
+	PLOTS_DIR_PATH = bureaucrat.processed_data_dir_path/Path('some_random_processed_signals_plots')
+	PLOTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
 	
 	with bureaucrat.verify_no_errors_context():
 		if two_pulses:
@@ -85,10 +87,13 @@ def script_core(
 									if n_pulse == 2:
 										raw_data_each_pulse[n_pulse][variable] = raw_data[variable][int(len(raw_data[variable])/2):]
 						for n_pulse in raw_data_each_pulse.keys():
-							signal = LGADSignal(
+							signal = PeakSignal(
 								time = raw_data_each_pulse[n_pulse]['Time (s)'],
-								samples = raw_data_each_pulse[n_pulse]['Amplitude (V)'],
+								samples = -1*raw_data_each_pulse[n_pulse]['Amplitude (V)'],
 							)
+							# ~ fig = draw_in_plotly(signal)
+							# ~ fig.write_html('deleteme.html', include_plotlyjs = 'cdn')
+							# ~ input('Continue? ')
 							# Because measuring bias voltage and current takes a long time, I do the following ---
 							measure_bias_IV_in_this_iteration = False
 							if 'last_time_bias_IV_was_measured' not in locals() or (datetime.datetime.now()-last_time_bias_IV_was_measured).seconds >= 11:
@@ -111,11 +116,16 @@ def script_core(
 								'Amplitude (V)': signal.amplitude,
 								'Noise (V)': signal.noise,
 								'Rise time (s)': signal.rise_time,
-								'Collected charge (V s)': signal.collected_charge,
+								'Collected charge (V s)': signal.peak_integral,
 								'Time over noise (s)': signal.time_over_noise,
 							}
 							for pp in TIMES_AT:
-								measured_data_dict[f't_{pp} (s)'] = signal.time_at_rising_edge(pp)
+								try:
+									_time = signal.find_time_at_rising_edge(pp)
+								except Exception as e:
+									print(f'Cannot find time at rising edge for threshold {pp}, reason: {repr(e)}')
+									_time = float('NaN')
+								measured_data_dict[f't_{pp} (s)'] = _time
 							measured_data_df = measured_data_df.append(measured_data_dict, ignore_index = True)
 							
 							this_position_signals_df = this_position_signals_df.append(
@@ -135,27 +145,45 @@ def script_core(
 								average_waveforms_df = waveforms_df_dumper.dump_to_disk(average_waveforms_df)
 								last_time_data_was_saved = datetime.datetime.now()
 							if plot_this_trigger:
-								fig = grafica.new(
-									title = f'Signal at n_position {n_position} n_trigger {n_trigger} n_channel {n_channel} n_pulse {n_pulse}',
-									subtitle = f'Measurement: {bureaucrat.measurement_name}',
-									xlabel = 'Time (s)',
-									ylabel = 'Amplitude (V)',
-									plotter_name = 'plotly',
+								fig = draw_in_plotly(signal)
+								fig.update_layout(
+									title = f'Signal n_trigger {n_trigger}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
+									xaxis_title = "Time (s)",
+									yaxis_title = "Amplitude (V)",
 								)
-								signal.plot_grafica(fig)
+								MARKERS = { # https://plotly.com/python/marker-style/#custom-marker-symbols
+									10: 'circle',
+									20: 'square',
+									30: 'diamond',
+									40: 'cross',
+									50: 'x',
+									60: 'star',
+									70: 'hexagram',
+									80: 'star-triangle-up',
+									90: 'star-triangle-down',
+								}
 								for pp in TIMES_AT:
 									try:
-										fig.scatter(
-											[signal.time_at_rising_edge(pp)],
-											[signal.signal_at(signal.time_at_rising_edge(pp))],
-											marker = 'x',
-											linestyle = 'none',
-											label = f'Time at {pp} %',
-											color = (0,0,0),
+										fig.add_trace(
+											go.Scatter(
+												x = [signal.find_time_at_rising_edge(pp)],
+												y = [signal(signal.find_time_at_rising_edge(pp))],
+												mode = 'markers',
+												name = f'Time at {pp} %',
+												marker=dict(
+													color = 'rgba(0,0,0,.5)',
+													size = 11,
+													symbol = MARKERS[pp]+'-open-dot',
+													line = dict(
+														color = 'rgba(0,0,0,.5)',
+														width = 2,
+													)
+												),
+											)
 										)
 									except Exception as e:
 										print(f'Cannot plot "times at X %", reason {e}.')
-								grafica.save_unsaved(mkdir=bureaucrat.processed_data_dir_path/Path('some_random_processed_signals_plots'))
+								fig.write_html(str(PLOTS_DIR_PATH/Path(f'n_trigger {n_trigger}.html')))
 					reporter.update(1)
 					try:
 						external_Telegram_reporter.update(1)
@@ -190,8 +218,8 @@ if __name__ == '__main__':
 	STEP_SIZE = 10e-6
 	SWEEP_LENGTH = 333e-6
 	
-	X_MIDDLE = -3.7128710937499996e-3
-	Y_MIDDLE = 0.114931640625e-3
+	X_MIDDLE = -3.474072265625e-3
+	Y_MIDDLE = 0.172451171875e-3
 	Z_FOCUS = 71.40015e-3
 	x_positions = X_MIDDLE + np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))*np.sin(np.pi/4)
 	y_positions = Y_MIDDLE - np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))*np.sin(np.pi/4)
@@ -200,10 +228,10 @@ if __name__ == '__main__':
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
-		bias_voltage = 170,
-		laser_DAC = 573,
+		bias_voltage = 66,
+		laser_DAC = 11,
 		positions = list(zip(x_positions,y_positions,z_positions)),
-		n_triggers = 2,
+		n_triggers = 10,
 		acquire_channels = [1,2],
 		two_pulses = True,
 	)
