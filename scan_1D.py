@@ -13,6 +13,42 @@ import plotly.graph_objects as go
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
 
+def draw_times_at(fig, signal):
+	MARKERS = { # https://plotly.com/python/marker-style/#custom-marker-symbols
+		10: 'circle',
+		20: 'square',
+		30: 'diamond',
+		40: 'cross',
+		50: 'x',
+		60: 'star',
+		70: 'hexagram',
+		80: 'star-triangle-up',
+		90: 'star-triangle-down',
+	}
+	for pp in TIMES_AT:
+		try:
+			fig.add_trace(
+				go.Scatter(
+					x = [signal.find_time_at_rising_edge(pp)], 
+					y = [signal(signal.find_time_at_rising_edge(pp))],
+					mode = 'markers',
+					name = f'Time at {pp} %',
+					marker=dict(
+						color = 'rgba(0,0,0,.5)',
+						size = 11,
+						symbol = MARKERS[pp]+'-open-dot',
+						line = dict(
+							color = 'rgba(0,0,0,.5)',
+							width = 2,
+						)
+					),
+				)
+			)
+		except KeyboardInterrupt:
+			raise KeyboardInterrupt
+		except:
+			pass
+
 def script_core(
 		measurement_name: str, 
 		bias_voltage: float,
@@ -104,9 +140,6 @@ def script_core(
 					# Process data for this trigger --------------------
 					for n_channel,n_pulse in this_trigger_signals_df.index:
 						signal = this_trigger_signals_df.loc[(n_channel,n_pulse),'signal']
-						# ~ fig = draw_in_plotly(signal)
-						# ~ fig.write_html('deleteme.html', include_plotlyjs = 'cdn')
-						# ~ input('Continue? ')
 						# Because measuring bias voltage and current takes a long time, I do the following ---
 						measure_bias_IV_in_this_iteration = False
 						if 'last_time_bias_IV_was_measured' not in locals() or (datetime.datetime.now()-last_time_bias_IV_was_measured).seconds >= 11:
@@ -135,6 +168,8 @@ def script_core(
 						for pp in TIMES_AT:
 							try:
 								_time = signal.find_time_at_rising_edge(pp)
+							except KeyboardInterrupt:
+								raise KeyboardInterrupt
 							except Exception as e:
 								_time = float('NaN')
 							measured_data_dict[f't_{pp} (s)'] = _time
@@ -164,38 +199,7 @@ def script_core(
 							fig.update_layout(
 								title = f'Signal {plot_name} <br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
 							)
-							MARKERS = { # https://plotly.com/python/marker-style/#custom-marker-symbols
-								10: 'circle',
-								20: 'square',
-								30: 'diamond',
-								40: 'cross',
-								50: 'x',
-								60: 'star',
-								70: 'hexagram',
-								80: 'star-triangle-up',
-								90: 'star-triangle-down',
-							}
-							for pp in TIMES_AT:
-								try:
-									fig.add_trace(
-										go.Scatter(
-											x = [signal.find_time_at_rising_edge(pp)],
-											y = [signal(signal.find_time_at_rising_edge(pp))],
-											mode = 'markers',
-											name = f'Time at {pp} %',
-											marker=dict(
-												color = 'rgba(0,0,0,.5)',
-												size = 11,
-												symbol = MARKERS[pp]+'-open-dot',
-												line = dict(
-													color = 'rgba(0,0,0,.5)',
-													width = 2,
-												)
-											),
-										)
-									)
-								except Exception as e:
-									print(f'Cannot plot "times at X %", reason {e}.')
+							draw_times_at(fig, signal)
 							fig.write_html(
 								str(PLOTS_DIR_PATH/Path(f'{plot_name}.html')),
 								include_plotlyjs = 'cdn',
