@@ -160,8 +160,9 @@ def script_core(
 						for n_channel,n_pulse in this_trigger_signals_df.index:
 							signal = this_trigger_signals_df.loc[(n_channel,n_pulse),'signal']
 							fig = draw_in_plotly(signal)
+							plot_name = f'n_position {n_position} n_trigger {n_trigger} n_channel {n_channel} n_pulse {n_pulse}'
 							fig.update_layout(
-								title = f'Signal n_trigger {n_trigger} n_pulse {n_pulse}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
+								title = f'Signal {plot_name} <br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
 							)
 							MARKERS = { # https://plotly.com/python/marker-style/#custom-marker-symbols
 								10: 'circle',
@@ -196,7 +197,7 @@ def script_core(
 								except Exception as e:
 									print(f'Cannot plot "times at X %", reason {e}.')
 							fig.write_html(
-								str(PLOTS_DIR_PATH/Path(f'n_trigger {n_trigger} n_channel {n_channel} n_pulse {n_pulse}.html')),
+								str(PLOTS_DIR_PATH/Path(f'{plot_name}.html')),
 								include_plotlyjs = 'cdn',
 							)
 					reporter.update(1)
