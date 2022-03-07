@@ -15,7 +15,7 @@ def script_core(directory):
 	except FileNotFoundError:
 		measured_data_df = pandas.read_csv(bureaucrat.processed_by_script_dir_path('scan_2D.py')/Path('measured_data.csv'))
 	
-	mean_df = measured_data_df.groupby(by=['n_position_1','n_position_2','n_channel','n_pulse']).mean()
+	mean_df = measured_data_df.groupby(by=['x (m)','y (m)','n_channel','n_pulse']).mean()
 	mean_df = mean_df.reset_index()
 	for col in sorted(measured_data_df.columns):
 		if col in {'n_position','n_position_1','n_position_2','n_channel','n_pulse','n_trigger','index'}:
@@ -26,8 +26,8 @@ def script_core(directory):
 				df = df.query(f'n_pulse=={n_pulse}')
 				df = pandas.pivot_table(
 					df,
-					index = 'n_position_1',
-					columns = 'n_position_2',
+					index = 'x (m)',
+					columns = 'y (m)',
 				)
 				try:
 					df[col]
@@ -37,15 +37,15 @@ def script_core(directory):
 				figure_name = f'{col} mean value n_channel {n_channel} n_pulse {n_pulse}'
 				fig.update_layout(
 					title = f'{figure_name}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
-					xaxis_title = 'n_position_1',
-					yaxis_title = 'n_position_2',
+					xaxis_title = 'x (m)',
+					yaxis_title = 'y (m)',
 				)
 				fig.add_trace(
 					go.Heatmap(
 						x = df.index.tolist(),
 						y = df[col].columns.tolist(),
 						z = df[col].values.tolist(),
-						hovertemplate = f'n<sub>1</sub>: %{{x}}, n<sub>2</sub>: %{{y}}<br>{col}: %{{z}}',
+						hovertemplate = f'x (m): %{{x}}, y (m): %{{y}}<br>{col}: %{{z}}',
 						name = '',
 						colorbar = dict(title = col),
 					)
