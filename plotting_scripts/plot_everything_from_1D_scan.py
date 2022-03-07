@@ -4,6 +4,8 @@ from pathlib import Path
 import plotly.express as px
 import pandas
 from grafica.plotly_utils.utils import line
+import warnings
+from scipy.stats import median_abs_deviation
 
 def calculate_1D_scan_distance(positions):
 	"""positions: List of positions, e.g. [(1, 4, 2), (2, 5, 2), (3, 7, 2), (4, 9, 2)].
@@ -30,7 +32,7 @@ def mean_std(df, by):
 		}
 	)
 
-	mean_df = utils.mean_std(df, by=['n','x'])
+	mean_df = mean_std(df, by=['n','x'])
 	
 	produces:
 	
@@ -40,7 +42,12 @@ def mean_std(df, by):
 	2  3  2  3.333333  0.577350
 	3  4  3  4.500000  0.707107
 	"""
-	mean_df = df.groupby(by=by).agg(['mean','std'])
+	k_MAD_TO_STD = 1.4826 # https://en.wikipedia.org/wiki/Median_absolute_deviation#Relation_to_standard_deviation
+	def MAD_std(x):
+		return median_abs_deviation(x, nan_policy='omit')*k_MAD_TO_STD
+	with warnings.catch_warnings(): # There is a deprecation warning that will be converted into an error in future versions of Pandas. When that happens, I will solve this.
+		warnings.simplefilter("ignore")
+		mean_df = df.groupby(by=by).agg(['mean','std',np.median,MAD_std])
 	mean_df.columns = [' '.join(col).strip() for col in mean_df.columns.values]
 	return mean_df.reset_index()
 
@@ -111,8 +118,8 @@ def script_core(directory):
 		fig = line(
 			data_frame = averaged_by_position_df,
 			x = 'Distance (m)',
-			y = f'{column} mean',
-			error_y = f'{column} std',
+			y = f'{column} median',
+			error_y = f'{column} MAD_std',
 			error_y_mode = 'band',
 			color = 'n_channel',
 			line_dash = 'n_pulse',
@@ -138,8 +145,8 @@ def script_core(directory):
 			fig = line(
 				data_frame = df,
 				x = 'Distance (m)',
-				y = 'Normalized collected charge mean',
-				error_y = 'Normalized collected charge std',
+				y = 'Normalized collected charge median',
+				error_y = 'Normalized collected charge MAD_std',
 				error_y_mode = 'band',
 				color = 'Channel',
 				line_dash = 'n_pulse',
