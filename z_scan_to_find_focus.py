@@ -11,9 +11,7 @@ STEP_SIZE = 22e-6
 SWEEP_LENGTH = 8e-3/5
 CHANNEL = 2
 
-the_setup = TheSetup(
-	temperature_controller_Pyro_uri = tct_scripts_config.TEMPERATURE_CONTROLLER_URI,
-)
+the_setup = TheSetup()
 
 with open(tct_scripts_config.CURRENT_DETECTOR_CENTER_FILE_PATH, 'r') as ifile:
 	center = {}
