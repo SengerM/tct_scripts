@@ -69,7 +69,9 @@ def script_core(
 				for n_trigger in range(n_triggers):
 					plot_this_trigger = np.random.rand() < 20/(len(positions)*n_triggers)
 					print(f'Measuring: n_position={n_position}/{len(positions)-1}, n_trigger={n_trigger}/{n_triggers-1}...')
+					# Acquire data for this trigger --------------------
 					utils.wait_for_nice_trigger_without_EMI(the_setup, acquire_channels)
+					this_trigger_signals_df = pandas.DataFrame()
 					for n_channel in acquire_channels:
 						try:
 							raw_data = the_setup.get_waveform(channel = n_channel)
@@ -86,104 +88,117 @@ def script_core(
 										raw_data_each_pulse[n_pulse][variable] = raw_data[variable][:int(len(raw_data[variable])/2)]
 									if n_pulse == 2:
 										raw_data_each_pulse[n_pulse][variable] = raw_data[variable][int(len(raw_data[variable])/2):]
-						for n_pulse in raw_data_each_pulse.keys():
-							signal = PeakSignal(
-								time = raw_data_each_pulse[n_pulse]['Time (s)'],
-								samples = -1*raw_data_each_pulse[n_pulse]['Amplitude (V)'],
-							)
-							# ~ fig = draw_in_plotly(signal)
-							# ~ fig.write_html('deleteme.html', include_plotlyjs = 'cdn')
-							# ~ input('Continue? ')
-							# Because measuring bias voltage and current takes a long time, I do the following ---
-							measure_bias_IV_in_this_iteration = False
-							if 'last_time_bias_IV_was_measured' not in locals() or (datetime.datetime.now()-last_time_bias_IV_was_measured).seconds >= 11:
-								measure_bias_IV_in_this_iteration = True
-								last_time_bias_IV_was_measured = datetime.datetime.now()
-							measured_data_dict = {
-								'n_position': n_position,
-								'n_trigger': n_trigger,
-								'n_channel': n_channel,
-								'n_pulse': n_pulse,
-								'x (m)': position[0],
-								'y (m)': position[1],
-								'z (m)': position[2],
-								'When': datetime.datetime.now(),
-								'Bias voltage (V)': the_setup.bias_voltage if measure_bias_IV_in_this_iteration else float('NaN'),
-								'Bias current (A)': the_setup.bias_current if measure_bias_IV_in_this_iteration else float('NaN'),
-								'Laser DAC': the_setup.laser_DAC,
-								'Temperature (°C)': the_setup.temperature,
-								'Humidity (%RH)': the_setup.humidity,
-								'Amplitude (V)': signal.amplitude,
-								'Noise (V)': signal.noise,
-								'Rise time (s)': signal.rise_time,
-								'Collected charge (V s)': signal.peak_integral,
-								'Time over noise (s)': signal.time_over_noise,
-							}
-							for pp in TIMES_AT:
-								try:
-									_time = signal.find_time_at_rising_edge(pp)
-								except Exception as e:
-									print(f'Cannot find time at rising edge for threshold {pp}, reason: {repr(e)}')
-									_time = float('NaN')
-								measured_data_dict[f't_{pp} (s)'] = _time
-							measured_data_df = measured_data_df.append(measured_data_dict, ignore_index = True)
-							
-							this_position_signals_df = this_position_signals_df.append(
-								pandas.DataFrame(
+								this_trigger_signals_df = this_trigger_signals_df.append(
 									{
 										'n_channel': n_channel,
 										'n_pulse': n_pulse,
-										'Samples (V)': list(signal.samples),
-										'Time (s)': list(signal.time),
-									}
-								),
-								ignore_index = True,
-							)
-							# Save data and do some plots ---
-							if 'last_time_data_was_saved' not in locals() or (datetime.datetime.now()-last_time_data_was_saved).seconds >= 60*5:
-								measured_data_df = measured_data_df_dumper.dump_to_disk(measured_data_df)
-								average_waveforms_df = waveforms_df_dumper.dump_to_disk(average_waveforms_df)
-								last_time_data_was_saved = datetime.datetime.now()
-							if plot_this_trigger:
-								fig = draw_in_plotly(signal)
-								fig.update_layout(
-									title = f'Signal n_trigger {n_trigger}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
-									xaxis_title = "Time (s)",
-									yaxis_title = "Amplitude (V)",
-								)
-								MARKERS = { # https://plotly.com/python/marker-style/#custom-marker-symbols
-									10: 'circle',
-									20: 'square',
-									30: 'diamond',
-									40: 'cross',
-									50: 'x',
-									60: 'star',
-									70: 'hexagram',
-									80: 'star-triangle-up',
-									90: 'star-triangle-down',
-								}
-								for pp in TIMES_AT:
-									try:
-										fig.add_trace(
-											go.Scatter(
-												x = [signal.find_time_at_rising_edge(pp)],
-												y = [signal(signal.find_time_at_rising_edge(pp))],
-												mode = 'markers',
-												name = f'Time at {pp} %',
-												marker=dict(
-													color = 'rgba(0,0,0,.5)',
-													size = 11,
-													symbol = MARKERS[pp]+'-open-dot',
-													line = dict(
-														color = 'rgba(0,0,0,.5)',
-														width = 2,
-													)
-												),
-											)
+										'signal': PeakSignal(
+											time = raw_data_each_pulse[n_pulse]['Time (s)'],
+											samples = raw_data_each_pulse[n_pulse]['Amplitude (V)'],
 										)
-									except Exception as e:
-										print(f'Cannot plot "times at X %", reason {e}.')
-								fig.write_html(str(PLOTS_DIR_PATH/Path(f'n_trigger {n_trigger}.html')))
+									},
+									ignore_index = True,
+								)
+					this_trigger_signals_df = this_trigger_signals_df.astype({'n_channel': int, 'n_pulse': int})
+					this_trigger_signals_df = this_trigger_signals_df.set_index(['n_channel','n_pulse'])
+					# Process data for this trigger --------------------
+					for n_channel,n_pulse in this_trigger_signals_df.index:
+						signal = this_trigger_signals_df.loc[(n_channel,n_pulse),'signal']
+						# ~ fig = draw_in_plotly(signal)
+						# ~ fig.write_html('deleteme.html', include_plotlyjs = 'cdn')
+						# ~ input('Continue? ')
+						# Because measuring bias voltage and current takes a long time, I do the following ---
+						measure_bias_IV_in_this_iteration = False
+						if 'last_time_bias_IV_was_measured' not in locals() or (datetime.datetime.now()-last_time_bias_IV_was_measured).seconds >= 11:
+							measure_bias_IV_in_this_iteration = True
+							last_time_bias_IV_was_measured = datetime.datetime.now()
+						measured_data_dict = {
+							'n_position': n_position,
+							'n_trigger': n_trigger,
+							'n_channel': n_channel,
+							'n_pulse': n_pulse,
+							'x (m)': position[0],
+							'y (m)': position[1],
+							'z (m)': position[2],
+							'When': datetime.datetime.now(),
+							'Bias voltage (V)': the_setup.bias_voltage if measure_bias_IV_in_this_iteration else float('NaN'),
+							'Bias current (A)': the_setup.bias_current if measure_bias_IV_in_this_iteration else float('NaN'),
+							'Laser DAC': the_setup.laser_DAC,
+							'Temperature (°C)': the_setup.temperature,
+							'Humidity (%RH)': the_setup.humidity,
+							'Amplitude (V)': signal.amplitude,
+							'Noise (V)': signal.noise,
+							'Rise time (s)': signal.rise_time,
+							'Collected charge (V s)': signal.peak_integral,
+							'Time over noise (s)': signal.time_over_noise,
+						}
+						for pp in TIMES_AT:
+							try:
+								_time = signal.find_time_at_rising_edge(pp)
+							except Exception as e:
+								_time = float('NaN')
+							measured_data_dict[f't_{pp} (s)'] = _time
+						measured_data_df = measured_data_df.append(measured_data_dict, ignore_index = True)
+						
+						this_position_signals_df = this_position_signals_df.append(
+							pandas.DataFrame(
+								{
+									'n_channel': n_channel,
+									'n_pulse': n_pulse,
+									'Samples (V)': list(signal.samples),
+									'Time (s)': list(signal.time),
+								}
+							),
+							ignore_index = True,
+						)
+						# Save data and do some plots ------------------
+					if 'last_time_data_was_saved' not in locals() or (datetime.datetime.now()-last_time_data_was_saved).seconds >= 60*5:
+						measured_data_df = measured_data_df_dumper.dump_to_disk(measured_data_df)
+						average_waveforms_df = waveforms_df_dumper.dump_to_disk(average_waveforms_df)
+						last_time_data_was_saved = datetime.datetime.now()
+					if plot_this_trigger:
+						for n_channel,n_pulse in this_trigger_signals_df.index:
+							signal = this_trigger_signals_df.loc[(n_channel,n_pulse),'signal']
+							fig = draw_in_plotly(signal)
+							fig.update_layout(
+								title = f'Signal n_trigger {n_trigger} n_pulse {n_pulse}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
+							)
+							MARKERS = { # https://plotly.com/python/marker-style/#custom-marker-symbols
+								10: 'circle',
+								20: 'square',
+								30: 'diamond',
+								40: 'cross',
+								50: 'x',
+								60: 'star',
+								70: 'hexagram',
+								80: 'star-triangle-up',
+								90: 'star-triangle-down',
+							}
+							for pp in TIMES_AT:
+								try:
+									fig.add_trace(
+										go.Scatter(
+											x = [signal.find_time_at_rising_edge(pp)],
+											y = [signal(signal.find_time_at_rising_edge(pp))],
+											mode = 'markers',
+											name = f'Time at {pp} %',
+											marker=dict(
+												color = 'rgba(0,0,0,.5)',
+												size = 11,
+												symbol = MARKERS[pp]+'-open-dot',
+												line = dict(
+													color = 'rgba(0,0,0,.5)',
+													width = 2,
+												)
+											),
+										)
+									)
+								except Exception as e:
+									print(f'Cannot plot "times at X %", reason {e}.')
+							fig.write_html(
+								str(PLOTS_DIR_PATH/Path(f'n_trigger {n_trigger} n_channel {n_channel} n_pulse {n_pulse}.html')),
+								include_plotlyjs = 'cdn',
+							)
 					reporter.update(1)
 					try:
 						external_Telegram_reporter.update(1)
@@ -231,7 +246,7 @@ if __name__ == '__main__':
 		bias_voltage = 66,
 		laser_DAC = 11,
 		positions = list(zip(x_positions,y_positions,z_positions)),
-		n_triggers = 10,
+		n_triggers = 4,
 		acquire_channels = [1,2],
 		two_pulses = True,
 	)
