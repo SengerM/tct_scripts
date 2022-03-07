@@ -22,14 +22,18 @@ def script_core(
 	)
 	
 	flat_list_of_positions = []
-	n_position_1 = []
-	n_position_2 = []
+	n_position_1s = []
+	n_position_2s = []
+	n_positions = []
+	n_position = 0
 	for n1, sublist_of_positions in enumerate(positions):
 		for n2, position in enumerate(sublist_of_positions):
 			flat_list_of_positions.append(position)
-			n_position_1.append(n1)
-			n_position_2.append(n2)
-	n_positions_df = pandas.DataFrame({'n_position_1': n_position_1, 'n_position_2': n_position_2})
+			n_position_1s.append(n1)
+			n_position_2s.append(n2)
+			n_positions.append(n_position)
+			n_position += 1
+	n_positions_df = pandas.DataFrame({'n_position_1': n_position_1s, 'n_position_2': n_position_2s, 'n_position': n_positions})
 	
 	with bureaucrat.verify_no_errors_context():
 		path_to_scan_1D_data = scan_1D(
@@ -48,6 +52,8 @@ def script_core(
 		
 		original_data_file_path = bureaucrat.processed_data_dir_path/Path('scan_1D/measured_data.fd')
 		measured_data_df = pandas.read_feather(original_data_file_path)
+		n_positions_df = n_positions_df.set_index('n_position')
+		measured_data_df = measured_data_df.set_index('n_position')
 		for col in n_positions_df.columns:
 			measured_data_df[col] = n_positions_df[col]
 		measured_data_df.reset_index().to_feather(bureaucrat.processed_data_dir_path/Path('measured_data.fd'))
@@ -63,7 +69,7 @@ if __name__ == '__main__':
 	X_MIDDLE = -3.474072265625e-3
 	Y_MIDDLE = 0.172451171875e-3
 	Z_FOCUS = 71.40015e-3
-	STEP_SIZE = 55e-6
+	STEP_SIZE = 10e-6
 	SWEEP_LENGTH_X = 2*np.sin(np.pi*45/180)*130e-6 + 30e-6
 	SWEEP_LENGTH_Y = SWEEP_LENGTH_X
 	
@@ -76,7 +82,7 @@ if __name__ == '__main__':
 		bias_voltage = 55,
 		laser_DAC = 0,
 		positions = [[(x,y,Z_FOCUS) for y in y_positions] for x in x_positions],
-		n_triggers = 2,
+		n_triggers = 4,
 		acquire_channels = [1,2],
 		two_pulses = True,
 	)
