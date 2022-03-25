@@ -68,9 +68,10 @@ def script_core(
 				error_y_mode = 'band',
 				title = f'IV curve<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
 				markers = '.',
-				log_y = True,
 			)
-			fig.write_html(str(bureaucrat.processed_data_dir_path/Path(f'IV_curve.html')), include_plotlyjs='cdn')
+			fig.write_html(str(bureaucrat.processed_data_dir_path/Path(f'iv_curve_lin_scale.html')), include_plotlyjs='cdn')
+			fig.update_yaxes(type='log')
+			fig.write_html(str(bureaucrat.processed_data_dir_path/Path(f'iv_curve_log_scale.html')), include_plotlyjs='cdn')
 		except Exception as e:
 			raise e
 		finally:
@@ -79,9 +80,9 @@ def script_core(
 if __name__ == '__main__':
 	import numpy as np
 	
-	VOLTAGES = np.linspace(0,500,111)
+	VOLTAGES = np.linspace(0,550,20)
 	
-	current_compliance = 10e-6
+	current_compliance = 3e-6
 	
 	script_core(
 		directory = tct_scripts_config.DATA_STORAGE_DIRECTORY_PATH/Path(input('Measurement name? ').replace(' ','_')),
