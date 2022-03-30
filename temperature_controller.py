@@ -4,15 +4,15 @@ from simple_pid import PID
 from time import sleep
 import atexit
 import threading
-from Pyro5.api import expose, behavior, serve
+import Pyro5.api
 from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
-from data_processing_bureaucrat.Bureaucrat import TelegramReportingInformation # Here I hide the token of my bot. Never make it public.
+import my_telegram_bots
 import datetime
 
 THREADS_SLEEP_SECONDS = 1
 
-@expose
-@behavior(instance_mode="single")
+@Pyro5.api.expose
+@Pyro5.api.behavior(instance_mode="single")
 class TemperatureController:
 	def __init__(self, temperature_low_limit=-25, temperature_high_limit=25):
 		self._temperature_humidity_sensor = EasySensirion.SensirionSensor()
@@ -167,10 +167,12 @@ class TemperatureController:
 		self.start()
 		print(f'Cooling down to {self.temperature_setpoint} °C and waiting humidity to decrease...')
 		while self.temperature > self.temperature_setpoint+1 or self.humidity > 5:
+			print(f'T = {self.temperature} °C, H = {self.humidity} %RH')
 			sleep(1)
 		self.temperature_setpoint = -20
-		print(f'Cooling down to {self.temperature_setpoint} °C...')
+		print(f'Humidity is under control, now cooling down to {self.temperature_setpoint} °C...')
 		while self.temperature > -20:
+			print(f'T = {self.temperature} °C, H = {self.humidity} %RH')
 			sleep(1)
 		print(f'Temperature is {self.temperature} °C. You can start using the system :)')
 	
@@ -190,8 +192,8 @@ class TemperatureController:
 			return # This means that it is already running, don't want to run it twice.
 		def _temperature_monitoring_overheat_thread_function():
 			telegram_reporter = TelegramReporter(
-				telegram_token = TelegramReportingInformation().token, # Here I store the token of my bot hidden, never make it public.
-				telegram_chat_id = '-785084808',
+				telegram_token = my_telegram_bots.robobot.token, # Here I store the token of my bot hidden, never make it public.
+				telegram_chat_id = my_telegram_bots.chat_ids['TCT setup temperature controller'],
 			)
 			response = telegram_reporter.send_message('Initializing temperature monitoring system...')
 			message_id = response['result']['message_id']
@@ -224,23 +226,21 @@ class TemperatureController:
 		temperature_monitoring_thread = threading.Thread(target=_temperature_monitoring_overheat_thread_function)
 		self._is_monitor_temperature_overheat = True
 		temperature_monitoring_thread.start()
-	
+
+SERVER_NAME = 'temperature_controller'
+
 def run_as_daemon():
-	# https://stackoverflow.com/questions/656933/communicating-with-a-running-python-daemon
-	serve(
-		{
-			TemperatureController: 'temperature_controller'
-		},
-		use_ns = False, # Would be nice to set this to True but I am getting an error...
-	)
+	# https://pyro5.readthedocs.io/en/latest/intro.html#with-a-name-server
+	daemon = Pyro5.server.Daemon()
+	ns = Pyro5.api.locate_ns()
+	uri = daemon.register(TemperatureController)
+	ns.register(SERVER_NAME, uri)
+	print("Temperature controller ready to start working!")
+	daemon.requestLoop()
+
 
 if __name__ == "__main__":
-	from Pyro5.api import Proxy
-	
-	run_as_daemon()
-	# ~ c = TemperatureController(temperature_low_limit=18)
-	# ~ c.temperature_setpoint = 15
-	# ~ c.start()
-	# ~ while True:
-		# ~ print(c.get_status_summary())
-		# ~ sleep(1)
+	try:
+		run_as_daemon()
+	except Pyro5.errors.NamingError:
+		print(f'Before running this you have to open a new terminal and run `python3 -m Pyro5.nameserver`, and keep it running. See *https://pyro5.readthedocs.io/en/latest/intro.html#with-a-name-server* for more info.')

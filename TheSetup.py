@@ -6,7 +6,8 @@ import atexit
 from time import sleep
 import threading
 import tct_scripts_config
-from pydrs import PythonFriendlyBoard # https://github.com/SengerM/pydrs
+import pydrs # https://github.com/SengerM/pydrs
+from temperature_controller import SERVER_NAME
 
 class TheSetup:
 	"""This class wraps all the hardware so if there are changes it is easy to adapt."""
@@ -15,14 +16,14 @@ class TheSetup:
 		- safe_mode: Turns laser and high voltage off when your Python instance is finished using `atexit`. Temperature is not touched.
 		"""
 		# ~ self._LeCroy = TeledyneLeCroyPy.LeCroyWaveRunner(pyvisa.ResourceManager().open_resource('USB0::1535::4131::2810N60091::0::INSTR'))
-		self._drs4_evaluation_board = PythonFriendlyBoard()
+		self._drs4_evaluation_board = pydrs.get_board(0)
 		self._tct = PyticularsTCT.TCT(
 			x_stage_port = '/dev/ttyACM3',
 			y_stage_port = '/dev/ttyACM2',
 			z_stage_port = '/dev/ttyACM1',
 		)
 		self._keithley = Keithley2470SafeForLGADs('USB0::1510::9328::04481179::0::INSTR', polarity = 'negative')
-		# ~ self._temperature_controller = Proxy(tct_scripts_config.TEMPERATURE_CONTROLLER_URI)
+		self._temperature_controller = Proxy(f'PYRONAME:{SERVER_NAME}')
 		
 		# Threading locks ---
 		self._oscilloscope_Lock = threading.RLock()
@@ -130,15 +131,13 @@ class TheSetup:
 			# ~ self._LeCroy.set_trig_slope('ext', 'negative')
 			# ~ self._LeCroy.set_tdiv('20ns')
 			# ~ self._LeCroy.set_trig_delay(-43e-9) # Totally empiric.
-			self._drs4_evaluation_board.set_sampling_frequency(Hz=3.5e9)
+			self._drs4_evaluation_board.set_sampling_frequency(Hz=5e9)
 			self._drs4_evaluation_board.set_transparent_mode('on')
 			self._drs4_evaluation_board.set_input_range(center=0)
 			self._drs4_evaluation_board.enable_trigger(True,False) # Don't know what this line does, it was in the example `drs_exam.cpp`.
-			self._drs4_evaluation_board.set_trigger_source('ch4')
-			self._drs4_evaluation_board.set_trigger_level(volts=-.1)
-			self._drs4_evaluation_board.set_trigger_polarity(edge='falling')
-			self._drs4_evaluation_board.set_trigger_delay(seconds=100e-9)
-	
+			self._drs4_evaluation_board.set_trigger_source('ext')
+			self._drs4_evaluation_board.set_trigger_delay(seconds=130e-9-40e-9) # Totally empiric number.
+			
 	def wait_for_trigger(self):
 		"""Blocks execution until there is a trigger in the oscilloscope."""
 		with self._oscilloscope_Lock:
