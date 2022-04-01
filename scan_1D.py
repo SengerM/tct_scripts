@@ -92,17 +92,12 @@ def script_core(
 			telegram_token = my_telegram_bots.robobot.token, 
 			telegram_chat_id = my_telegram_bots.chat_ids['Robobot TCT setup'],
 		)
-		average_waveforms_df = pandas.DataFrame(columns={'n_position','n_channel','n_pulse','Amplitude mean (V)','Amplitude std (V)','Time (s)'})
-		
-		measured_data_df_dumper = utils.DataFrameDumper(bureaucrat.processed_data_dir_path/Path('measured_data.fd'), measured_data_df)
-		waveforms_df_dumper = utils.DataFrameDumper(bureaucrat.processed_data_dir_path/Path('average_waveforms.fd'), average_waveforms_df)
 		
 		with reporter.report_for_loop(len(positions)*n_triggers, f'{bureaucrat.measurement_name}') as reporter:
 			for n_position, target_position in enumerate(positions):
 				the_setup.move_to(*target_position)
 				sleep(0.1)
 				position = the_setup.position
-				this_position_signals_df = pandas.DataFrame(columns={'n_channel','n_pulse','Samples (V)','Time (s)'})
 				for n_trigger in range(n_triggers):
 					plot_this_trigger = np.random.rand() < 20/(len(positions)*n_triggers)
 					print(f'Measuring: n_position={n_position}/{len(positions)-1}, n_trigger={n_trigger}/{n_triggers-1}...')
@@ -176,21 +171,9 @@ def script_core(
 							measured_data_dict[f't_{pp} (s)'] = _time
 						measured_data_df = measured_data_df.append(measured_data_dict, ignore_index = True)
 						
-						this_position_signals_df = this_position_signals_df.append(
-							pandas.DataFrame(
-								{
-									'n_channel': n_channel,
-									'n_pulse': n_pulse,
-									'Samples (V)': list(signal.samples),
-									'Time (s)': list(signal.time),
-								}
-							),
-							ignore_index = True,
-						)
 						# Save data and do some plots ------------------
 					if 'last_time_data_was_saved' not in locals() or (datetime.datetime.now()-last_time_data_was_saved).seconds >= 60*5:
-						measured_data_df = measured_data_df_dumper.dump_to_disk(measured_data_df)
-						average_waveforms_df = waveforms_df_dumper.dump_to_disk(average_waveforms_df)
+						measured_data_df.reset_index().to_feather(bureaucrat.processed_data_dir_path/Path('measured_data.fd'))
 						last_time_data_was_saved = datetime.datetime.now()
 					if plot_this_trigger:
 						for n_channel,n_pulse in this_trigger_signals_df.index:
@@ -199,6 +182,8 @@ def script_core(
 							plot_name = f'n_position {n_position} n_trigger {n_trigger} n_channel {n_channel} n_pulse {n_pulse}'
 							fig.update_layout(
 								title = f'Signal {plot_name} <br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
+								xaxis_title = 'Time (s)',
+								yaxis_title = 'Amplitude (V)',
 							)
 							draw_times_at(fig, signal)
 							fig.write_html(
@@ -210,21 +195,10 @@ def script_core(
 						external_Telegram_reporter.update(1)
 					except:
 						pass
-				
-				this_position_mean_df = this_position_signals_df.groupby(['n_channel','n_pulse','Time (s)']).mean()
-				this_position_mean_df.rename(columns={'Samples (V)': 'Amplitude mean (V)'}, inplace=True)
-				this_position_mean_df['Amplitude std (V)'] = this_position_signals_df.groupby(['n_channel','n_pulse','Time (s)']).std()['Samples (V)']
-				this_position_mean_df['n_position'] = n_position
-				this_position_mean_df.reset_index(inplace=True)
-				this_position_mean_df.set_index(['n_position','n_channel','n_pulse'], inplace=True)
-				average_waveforms_df.set_index(['n_position','n_channel','n_pulse'], inplace=True)
-				average_waveforms_df = average_waveforms_df.append(this_position_mean_df)
-				average_waveforms_df = average_waveforms_df.reset_index()
 		# Save remaining data ---
 		print('Finished measuring! :)')
-		print('Merging dumped dataframes...')
-		measured_data_df_dumper.end(measured_data_df)
-		waveforms_df_dumper.end(average_waveforms_df)
+		print('Saving data...')
+		measured_data_df.reset_index().to_feather(bureaucrat.processed_data_dir_path/Path('measured_data.fd'))
 		print('Doing plots...')
 		plot_everything_from_1D_scan(directory = bureaucrat.measurement_base_path)
 		print('Finished plotting!')
@@ -236,23 +210,25 @@ def script_core(
 if __name__ == '__main__':
 	from TheSetup import TheSetup
 	
-	STEP_SIZE = 10e-6
-	SWEEP_LENGTH = 333e-6
+	CENTER = {'x': -5.21759765625e-3, 'y': 0.992265625e-3, 'z': 71.41140625e-3}
 	
-	X_MIDDLE = -3.474072265625e-3
-	Y_MIDDLE = 0.172451171875e-3
-	Z_FOCUS = 71.40015e-3
-	x_positions = X_MIDDLE + np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))*np.sin(np.pi/4)
-	y_positions = Y_MIDDLE - np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE))*np.sin(np.pi/4)
-	z_positions = Z_FOCUS + x_positions*0
+	STEP = 1e-6 # meters
+	SCAN_LENGTH = 250e-6 # meters
+	
+	x = np.arange(CENTER['x'] - SCAN_LENGTH/2, CENTER['x'] + SCAN_LENGTH/2, STEP)
+	y = CENTER['y'] + 0*x
+	z = CENTER['z'] + 0*x
+	positions = []
+	for i in range(len(y)):
+		positions.append( [ x[i],y[i],z[i] ] )
 	
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
-		bias_voltage = 66,
-		laser_DAC = 11,
-		positions = list(zip(x_positions,y_positions,z_positions)),
-		n_triggers = 4,
+		bias_voltage = 530,
+		laser_DAC = 630,
+		positions = positions,
+		n_triggers = 333,
 		acquire_channels = [1,2],
 		two_pulses = True,
 	)
