@@ -3,8 +3,9 @@ from scan_1D import script_core as scan_1D
 from TheSetup import TheSetup
 import pandas
 from pathlib import Path
-from data_processing_bureaucrat.Bureaucrat import Bureaucrat, TelegramReportingInformation # https://github.com/SengerM/data_processing_bureaucrat
+from bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/bureaucrat
 from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
+import my_telegram_bots
 import plotly.express as px
 import time
 import utils
@@ -51,8 +52,8 @@ if 'preview' in bureaucrat.measurement_name.lower():
 	N_TRIGGERS_PER_POSITION = 22
 
 reporter = TelegramReporter(
-	telegram_token = TelegramReportingInformation().token, 
-	telegram_chat_id = TelegramReportingInformation().chat_id,
+	telegram_token = my_telegram_bots.robobot.token, 
+	telegram_chat_id = my_telegram_bots.chat_ids['Robobot TCT setup'],
 )
 
 ################################

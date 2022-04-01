@@ -1,8 +1,9 @@
 import numpy as np
 from time import sleep
 from signals.PeakSignal import PeakSignal, draw_in_plotly # https://github.com/SengerM/signals
-from data_processing_bureaucrat.Bureaucrat import Bureaucrat, TelegramReportingInformation # https://github.com/SengerM/data_processing_bureaucrat
+from bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/bureaucrat
 from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
+import my_telegram_bots
 from pathlib import Path
 from plotting_scripts.plot_everything_from_1D_scan import script_core as plot_everything_from_1D_scan
 import pandas
@@ -88,8 +89,8 @@ def script_core(
 		measured_data_df = pandas.DataFrame(columns = data_frame_columns)
 		
 		reporter = TelegramReporter(
-			telegram_token = TelegramReportingInformation().token, 
-			telegram_chat_id = TelegramReportingInformation().chat_id,
+			telegram_token = my_telegram_bots.robobot.token, 
+			telegram_chat_id = my_telegram_bots.chat_ids['Robobot TCT setup'],
 		)
 		average_waveforms_df = pandas.DataFrame(columns={'n_position','n_channel','n_pulse','Amplitude mean (V)','Amplitude std (V)','Time (s)'})
 		

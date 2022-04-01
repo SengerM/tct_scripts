@@ -1,4 +1,4 @@
-from data_processing_bureaucrat.Bureaucrat import Bureaucrat
+from bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/bureaucrat
 import numpy as np
 from pathlib import Path
 import plotly.express as px
