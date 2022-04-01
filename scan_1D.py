@@ -46,6 +46,7 @@ def script_core(
 		waveforms_df = pandas.DataFrame()
 		
 		with reporter.report_for_loop(len(positions)*n_triggers, f'{Raúl.measurement_name}') as reporter:
+			n_waveform = 0
 			for n_position, target_position in enumerate(positions):
 				the_setup.move_to(*target_position)
 				sleep(0.1) # Wait for any transient after moving the motors.
@@ -69,7 +70,7 @@ def script_core(
 									raw_data_each_pulse[n_pulse][variable] = raw_data[variable][int(len(raw_data[variable])/2):]
 							
 							# Because measuring bias voltage and current takes a long time (don't know why), I do the following ---
-							measure_bias_IV_in_this_iteration = False
+							measure_slow_things_in_this_iteration = False
 							if 'last_time_slow_things_were_measured' not in locals() or (datetime.datetime.now()-last_time_slow_things_were_measured).seconds >= 11:
 								measure_slow_things_in_this_iteration = True
 								last_time_slow_things_were_measured = datetime.datetime.now()
@@ -83,15 +84,16 @@ def script_core(
 											'n_trigger': n_trigger,
 											'n_channel': n_channel,
 											'n_pulse': n_pulse,
+											'n_waveform': n_waveform,
 											'x (m)': position[0],
 											'y (m)': position[1],
 											'z (m)': position[2],
 											'When': datetime.datetime.now(),
-											'Bias voltage (V)': the_setup.bias_voltage if measure_bias_IV_in_this_iteration else float('NaN'),
-											'Bias current (A)': the_setup.bias_current if measure_bias_IV_in_this_iteration else float('NaN'),
+											'Bias voltage (V)': the_setup.bias_voltage if measure_slow_things_in_this_iteration else float('NaN'),
+											'Bias current (A)': the_setup.bias_current if measure_slow_things_in_this_iteration else float('NaN'),
 											'Laser DAC': the_setup.laser_DAC,
-											'Temperature (°C)': the_setup.temperature if measure_bias_IV_in_this_iteration else float('NaN'),
-											'Humidity (%RH)': the_setup.humidity if measure_bias_IV_in_this_iteration else float('NaN'),
+											'Temperature (°C)': the_setup.temperature if measure_slow_things_in_this_iteration else float('NaN'),
+											'Humidity (%RH)': the_setup.humidity if measure_slow_things_in_this_iteration else float('NaN'),
 											'Time (s)': raw_data_each_pulse[n_pulse]['Time (s)'],
 											'Amplitude (V)': raw_data_each_pulse[n_pulse]['Amplitude (V)'],
 										},
@@ -99,6 +101,7 @@ def script_core(
 								],
 								ignore_index = True,
 							)
+							n_waveform += 1
 					if len(waveforms_df.index) > 1e6:
 						waveforms_df.reset_index().to_feather(DIRECTORY_TO_STORE_WAVEFORMS/Path(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')+'.fd'))
 						waveforms_df = pandas.DataFrame()
@@ -128,7 +131,7 @@ if __name__ == '__main__':
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
-		bias_voltage = 1,
+		bias_voltage = 500,
 		laser_DAC = 0,
 		positions = positions,
 		n_triggers = 55,
