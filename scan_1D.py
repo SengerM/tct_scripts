@@ -8,6 +8,14 @@ import pandas
 import datetime
 import utils
 import tct_scripts_config
+from parse_waveforms_from_scan import script_core as parse_waveforms
+from plotting_scripts.plot_everything_from_1D_scan import script_core as plot_measurement
+
+def post_process(measurement_base_path: Path):
+	print(f'Launching post-processing of {measurement_base_path.parts[-1]}...')
+	parse_waveforms(measurement_base_path, silent=True)
+	plot_measurement(measurement_base_path)
+	print(f'Post-processing of {measurement_base_path.parts[-1]} finished!')
 
 def script_core(
 		measurement_name: str, 
@@ -121,7 +129,7 @@ DEVICE_CENTER = {
 	'y': 0.4559765625e-3, 
 	'z': 71.41471e-3
 }
-SCAN_STEP = 1e-6 # meters
+SCAN_STEP = 11e-6 # meters
 SCAN_LENGTH = 380e-6 # meters
 SCAN_ANGLE_DEG = 45 # deg
 
@@ -135,7 +143,7 @@ if __name__ == '__main__':
 	for i in range(len(y)):
 		positions.append( [ x[i],y[i],z[i] ] )
 	
-	script_core(
+	measurement_base_path = script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
 		bias_voltage = 111,
@@ -144,4 +152,4 @@ if __name__ == '__main__':
 		n_triggers = 55,
 		acquire_channels = [1,2],
 	)
-
+	post_process(measurement_base_path)
