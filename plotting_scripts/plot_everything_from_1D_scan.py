@@ -179,6 +179,8 @@ def script_core(directory):
 	except FileNotFoundError:
 		pass
 	
+	return bureaucrat.measurement_base_path
+	
 if __name__ == '__main__':
 	import argparse
 	parser = argparse.ArgumentParser(description='Plots every thing measured in an xy scan.')

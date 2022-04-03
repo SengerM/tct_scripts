@@ -142,6 +142,8 @@ def script_core(directory: Path):
 		
 		for fpath in [parsed_data_df_path, measured_data_df_path]:
 			fpath.unlink()
+		
+	return Quique.measurement_base_path
 
 if __name__ == '__main__':
 	import argparse
