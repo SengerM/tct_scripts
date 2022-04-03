@@ -63,7 +63,10 @@ def generate_column_with_distances(df):
 	)
 	return distances_df.set_index('n_position')
 
-def script_core(directory: Path):
+def script_core(directory: Path, silent: bool = True):
+	if not isinstance(silent, bool):
+		raise ValueError(f'`silent` must be of type {repr(type(True))}, received object of type {repr(type(silent))}.')
+	
 	Quique = Bureaucrat( # Quique is the friendly alias to the name Enrique (at least in Argentina).
 		directory,
 		variables = locals(),
@@ -117,8 +120,8 @@ def script_core(directory: Path):
 					ignore_index = True,
 				)
 				measured_data_df = measured_data_df_dumper.dump_to_disk(measured_data_df)
-				
-				print(f'n_waveform {n_waveform} was processed!')
+				if not silent:
+					print(f'n_waveform {n_waveform} was processed!')
 		parsed_data_df_dumper.end(parsed_data_df)
 		measured_data_df_dumper.end(measured_data_df)
 		
@@ -157,4 +160,4 @@ if __name__ == '__main__':
 		type = str,
 	)
 	args = parser.parse_args()
-	script_core(Path(args.directory))
+	script_core(Path(args.directory), silent=False)
