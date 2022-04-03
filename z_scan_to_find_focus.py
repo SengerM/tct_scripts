@@ -3,7 +3,7 @@ from scan_1D import script_core as linear_scan
 from TheSetup import TheSetup
 import pandas
 from pathlib import Path
-from data_processing_bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/data_processing_bureaucrat
+from bureaucrat.Bureaucrat import Bureaucrat
 import tct_scripts_config
 from grafica.plotly_utils.utils import line as grafica_line
 
