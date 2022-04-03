@@ -93,22 +93,22 @@ def script_core(directory):
 	GROUP_BY = ['n_position','n_channel','n_pulse','Distance (m)']
 	averaged_by_position_df = mean_std(data_df, by=GROUP_BY)
 	
-	mean_std_plots_dir_Path = bureaucrat.processed_data_dir_path/Path('mean_std_plots')
-	mean_std_plots_dir_Path.mkdir(parents=True, exist_ok=True)
-	for column in averaged_by_position_df:
-		if column in GROUP_BY:
-			continue
-		fig = line(
-			data_frame = averaged_by_position_df,
-			x = 'Distance (m)',
-			y = column,
-			color = 'n_channel',
-			line_dash = 'n_pulse',
-			symbol = 'n_pulse',
-			markers = True,
-			title = f'{column}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
-		)
-		fig.write_html(str(mean_std_plots_dir_Path/Path(f'{column}.html')), include_plotlyjs='cdn')
+	# ~ mean_std_plots_dir_Path = bureaucrat.processed_data_dir_path/Path('mean_std_plots')
+	# ~ mean_std_plots_dir_Path.mkdir(parents=True, exist_ok=True)
+	# ~ for column in averaged_by_position_df:
+		# ~ if column in GROUP_BY:
+			# ~ continue
+		# ~ fig = line(
+			# ~ data_frame = averaged_by_position_df,
+			# ~ x = 'Distance (m)',
+			# ~ y = column,
+			# ~ color = 'n_channel',
+			# ~ line_dash = 'n_pulse',
+			# ~ symbol = 'n_pulse',
+			# ~ markers = True,
+			# ~ title = f'{column}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
+		# ~ )
+		# ~ fig.write_html(str(mean_std_plots_dir_Path/Path(f'{column}.html')), include_plotlyjs='cdn')
 	
 	error_band_plots_dir_Path = bureaucrat.processed_data_dir_path/Path('error_band_plots')
 	error_band_plots_dir_Path.mkdir(parents=True, exist_ok=True)
@@ -156,45 +156,45 @@ def script_core(directory):
 			fig.write_html(str(error_band_plots_dir_Path/Path(f'Total collected charge CH{ch_A} and CH{ch_B}.html')), include_plotlyjs='cdn')
 	
 	# Histograms with sliders for the position ---
-	for column in {'Amplitude (V)','Noise (V)','Rise time (s)','Collected charge (V s)','Time over noise (s)','t_10 (s)','t_50 (s)','t_90 (s)'}:
-		if column in {'n_position', 'n_trigger', 'n_channel', 'n_pulse', 'x (m)', 'y (m)', 'z (m)', 'Distance (m)'}:
-			continue
-		figure_title = f'{column.split("(")[0]} distribution vs position'
-		fig = px.histogram(
-			data_df,
-			x = column,
-			title = f'{figure_title}<br><sup>Measurement {bureaucrat.measurement_name}</sup>',
-			barmode = 'overlay',
-			animation_frame = 'n_position',
-			color = 'n_pulse',
-			facet_row = 'n_channel',
-			range_x = [min(data_df[column]), max(data_df[column])],
-		)
-		fig["layout"].pop("updatemenus")
-		fig.update_traces(
-			xbins = dict(
-				start = min(data_df[column]),
-				end = max(data_df[column]),
-				size = (max(data_df[column])-min(data_df[column]))/99,
-			),
-		)
-		ofilepath = bureaucrat.processed_data_dir_path/Path('histograms')/Path(figure_title+'.html')
-		ofilepath.parent.absolute().mkdir(parents=True, exist_ok=True)
-		fig.write_html(str(ofilepath), include_plotlyjs='cdn')
+	# ~ for column in {'Amplitude (V)','Noise (V)','Rise time (s)','Collected charge (V s)','Time over noise (s)','t_10 (s)','t_50 (s)','t_90 (s)'}:
+		# ~ if column in {'n_position', 'n_trigger', 'n_channel', 'n_pulse', 'x (m)', 'y (m)', 'z (m)', 'Distance (m)'}:
+			# ~ continue
+		# ~ figure_title = f'{column.split("(")[0]} distribution vs position'
+		# ~ fig = px.histogram(
+			# ~ data_df,
+			# ~ x = column,
+			# ~ title = f'{figure_title}<br><sup>Measurement {bureaucrat.measurement_name}</sup>',
+			# ~ barmode = 'overlay',
+			# ~ animation_frame = 'n_position',
+			# ~ color = 'n_pulse',
+			# ~ facet_row = 'n_channel',
+			# ~ range_x = [min(data_df[column]), max(data_df[column])],
+		# ~ )
+		# ~ fig["layout"].pop("updatemenus")
+		# ~ fig.update_traces(
+			# ~ xbins = dict(
+				# ~ start = min(data_df[column]),
+				# ~ end = max(data_df[column]),
+				# ~ size = (max(data_df[column])-min(data_df[column]))/99,
+			# ~ ),
+		# ~ )
+		# ~ ofilepath = bureaucrat.processed_data_dir_path/Path('histograms')/Path(figure_title+'.html')
+		# ~ ofilepath.parent.absolute().mkdir(parents=True, exist_ok=True)
+		# ~ fig.write_html(str(ofilepath), include_plotlyjs='cdn')
 	
-	average_waveforms_df = pandas.read_feather(bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('average_waveforms.fd'))
-	fig = line(
-		title = f'Waveforms<br><sup>Measurement {bureaucrat.measurement_name}</sup>',
-		data_frame = average_waveforms_df,
-		x = 'Time (s)',
-		y = 'Amplitude mean (V)',
-		color = 'n_pulse',
-		animation_frame = 'n_position',
-		facet_row = 'n_channel',
-	)
-	fig.update_yaxes(range=[average_waveforms_df['Amplitude mean (V)'].min(), average_waveforms_df['Amplitude mean (V)'].max()])
-	fig.update_layout(transition={'duration': 1})
-	fig.write_html(str(bureaucrat.processed_data_dir_path/Path('waveforms.html')), include_plotlyjs='cdn')
+	# ~ average_waveforms_df = pandas.read_feather(bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('average_waveforms.fd'))
+	# ~ fig = line(
+		# ~ title = f'Waveforms<br><sup>Measurement {bureaucrat.measurement_name}</sup>',
+		# ~ data_frame = average_waveforms_df,
+		# ~ x = 'Time (s)',
+		# ~ y = 'Amplitude mean (V)',
+		# ~ color = 'n_pulse',
+		# ~ animation_frame = 'n_position',
+		# ~ facet_row = 'n_channel',
+	# ~ )
+	# ~ fig.update_yaxes(range=[average_waveforms_df['Amplitude mean (V)'].min(), average_waveforms_df['Amplitude mean (V)'].max()])
+	# ~ fig.update_layout(transition={'duration': 1})
+	# ~ fig.write_html(str(bureaucrat.processed_data_dir_path/Path('waveforms.html')), include_plotlyjs='cdn')
 	
 if __name__ == '__main__':
 	import argparse
