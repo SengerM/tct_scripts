@@ -7,19 +7,6 @@ from grafica.plotly_utils.utils import line
 import warnings
 from scipy.stats import median_abs_deviation
 
-def calculate_1D_scan_distance(positions):
-	"""positions: List of positions, e.g. [(1, 4, 2), (2, 5, 2), (3, 7, 2), (4, 9, 2)].
-	returns: List of distances starting with 0 at the first point and assuming linear interpolation."""
-	return [0] + list(np.cumsum((np.diff(positions, axis=0)**2).sum(axis=1)**.5))
-
-def calculate_1D_scan_distance_from_dataframe(df):
-	x = df.groupby('n_position').mean()[f'x (m)']
-	y = df.groupby('n_position').mean()[f'y (m)']
-	z = df.groupby('n_position').mean()[f'z (m)']
-	distances_df = pandas.DataFrame({'n_position': [i for i in range(len(set(df['n_position'])))], 'Distance (m)': calculate_1D_scan_distance(list(zip(x,y,z)))})
-	distances_df.set_index('n_position')
-	return distances_df
-
 def mean_std(df, by):
 	"""Groups by `by` (list of columns), calculates mean and std, and creates one column with mean and another with std for each column not present in `by`.
 	Example
@@ -78,11 +65,6 @@ def script_core(directory):
 	data_df = pandas.read_feather(
 		bureaucrat.processed_by_script_dir_path('parse_waveforms_from_scan.py')/Path('data.fd'),
 	)
-	
-	distances_df = calculate_1D_scan_distance_from_dataframe(data_df)
-	data_df.set_index('n_position', inplace=True)
-	data_df = data_df.merge(distances_df, left_index=True, right_index=True)
-	data_df.reset_index(inplace=True, drop=True)
 	
 	data_df = calculate_normalized_collected_charge(data_df)
 	

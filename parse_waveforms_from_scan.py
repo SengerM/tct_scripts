@@ -44,6 +44,25 @@ def draw_times_at(fig, signal):
 		except:
 			pass
 
+def calculate_1D_scan_distance_from_list_of_positions(positions):
+	"""positions: List of positions, e.g. [(1, 4, 2), (2, 5, 2), (3, 7, 2), (4, 9, 2)].
+	returns: List of distances starting with 0 at the first point and assuming linear interpolation."""
+	return [0] + list(np.cumsum((np.diff(positions, axis=0)**2).sum(axis=1)**.5))
+
+def generate_column_with_distances(df):
+	if df.index.name != 'n_position':
+		raise ValueError(f'`df` must have as index `n_position`.')
+	x = df.groupby(df.index).mean()[f'x (m)']
+	y = df.groupby(df.index).mean()[f'y (m)']
+	z = df.groupby(df.index).mean()[f'z (m)']
+	distances_df = pandas.DataFrame(
+		{
+			'n_position': [i for i in range(len(set(df.index)))], 
+			'Distance (m)': calculate_1D_scan_distance_from_list_of_positions(list(zip(x,y,z)))
+		}
+	)
+	return distances_df.set_index('n_position')
+
 def script_core(directory: Path):
 	Quique = Bureaucrat( # Quique is the friendly alias to the name Enrique (at least in Argentina).
 		directory,
@@ -113,6 +132,10 @@ def script_core(directory: Path):
 		parsed_data_df = parsed_data_df.set_index('n_waveform')
 		measured_data_df = measured_data_df.set_index('n_waveform')
 		all_data_df = pandas.concat([parsed_data_df, measured_data_df], axis=1)
+		all_data_df = all_data_df.reset_index()
+		
+		all_data_df = all_data_df.set_index('n_position')
+		all_data_df['Distance (m)'] = generate_column_with_distances(all_data_df)
 		all_data_df = all_data_df.reset_index()
 		
 		all_data_df.reset_index(drop=True).to_feather(Quique.processed_data_dir_path/Path('data.fd'))
