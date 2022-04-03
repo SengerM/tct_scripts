@@ -1,13 +1,16 @@
 import PyticularsTCT # https://github.com/SengerM/PyticularsTCT
+from PyticularsTCT.find_ximc_stages import map_coordinates_to_serial_ports # https://github.com/SengerM/PyticularsTCT
 import pyvisa
+import TeledyneLeCroyPy # https://github.com/SengerM/TeledyneLeCroyPy
 from keithley.Keithley2470 import Keithley2470SafeForLGADs # https://github.com/SengerM/keithley
 from Pyro5.api import Proxy
 import atexit
 from time import sleep
 import threading
 import tct_scripts_config
-import pydrs # https://github.com/SengerM/pydrs
+# ~ import pydrs # https://github.com/SengerM/pydrs
 from temperature_controller import SERVER_NAME
+import warnings
 
 class TheSetup:
 	"""This class wraps all the hardware so if there are changes it is easy to adapt."""
@@ -15,13 +18,17 @@ class TheSetup:
 		"""
 		- safe_mode: Turns laser and high voltage off when your Python instance is finished using `atexit`. Temperature is not touched.
 		"""
-		# ~ self._LeCroy = TeledyneLeCroyPy.LeCroyWaveRunner(pyvisa.ResourceManager().open_resource('USB0::1535::4131::2810N60091::0::INSTR'))
-		self._drs4_evaluation_board = pydrs.get_board(0)
-		self._tct = PyticularsTCT.TCT(
-			x_stage_port = '/dev/ttyACM3',
-			y_stage_port = '/dev/ttyACM2',
-			z_stage_port = '/dev/ttyACM1',
-		)
+		self._LeCroy = TeledyneLeCroyPy.LeCroyWaveRunner(pyvisa.ResourceManager().open_resource('USB0::1535::4131::2810N60091::0::INSTR'))
+		# ~ self._drs4_evaluation_board = pydrs.get_board(0)
+		
+		stages_coordinates = {
+			'XIMC_XIMC_Motor_Controller_00003A48': 'x',
+			'XIMC_XIMC_Motor_Controller_00003A57': 'y',
+			'XIMC_XIMC_Motor_Controller_000038CE': 'z',
+		}
+		ports_dict = map_coordinates_to_serial_ports(stages_coordinates)
+		self._tct = PyticularsTCT.TCT(x_stage_port=ports_dict['x'], y_stage_port=ports_dict['y'], z_stage_port=ports_dict['z'])
+		
 		self._keithley = Keithley2470SafeForLGADs('USB0::1510::9328::04481179::0::INSTR', polarity = 'negative')
 		self._temperature_controller = Proxy(f'PYRONAME:{SERVER_NAME}')
 		
@@ -125,38 +132,54 @@ class TheSetup:
 	def configure_oscilloscope_for_two_pulses(self):
 		"""Configures the horizontal scale and trigger of the oscilloscope to properly acquire two pulses."""
 		with self._oscilloscope_Lock:
-			# ~ self._LeCroy.set_trig_source('ext')
-			# ~ self._LeCroy.set_trig_level('ext', -175e-3) # Totally empiric.
-			# ~ self._LeCroy.set_trig_coupling('ext', 'DC')
-			# ~ self._LeCroy.set_trig_slope('ext', 'negative')
-			# ~ self._LeCroy.set_tdiv('20ns')
-			# ~ self._LeCroy.set_trig_delay(-43e-9) # Totally empiric.
-			self._drs4_evaluation_board.set_sampling_frequency(Hz=5e9)
-			self._drs4_evaluation_board.set_transparent_mode('on')
-			self._drs4_evaluation_board.set_input_range(center=0)
-			self._drs4_evaluation_board.enable_trigger(True,False) # Don't know what this line does, it was in the example `drs_exam.cpp`.
-			self._drs4_evaluation_board.set_trigger_source('ext')
-			self._drs4_evaluation_board.set_trigger_delay(seconds=130e-9-40e-9) # Totally empiric number.
+			if hasattr(self, '_LeCroy'):
+				self._LeCroy.set_trig_source('ext')
+				self._LeCroy.set_trig_level('ext', -175e-3) # Totally empiric.
+				self._LeCroy.set_trig_coupling('ext', 'DC')
+				self._LeCroy.set_trig_slope('ext', 'negative')
+				self._LeCroy.set_tdiv('20ns')
+				self._LeCroy.set_trig_delay(-43e-9) # Totally empiric.
+			elif hasattr(self, '_drs4_evaluation_board'):
+				self._drs4_evaluation_board.set_sampling_frequency(Hz=5e9)
+				self._drs4_evaluation_board.set_transparent_mode('on')
+				self._drs4_evaluation_board.set_input_range(center=0)
+				self._drs4_evaluation_board.enable_trigger(True,False) # Don't know what this line does, it was in the example `drs_exam.cpp`.
+				self._drs4_evaluation_board.set_trigger_source('ext')
+				self._drs4_evaluation_board.set_trigger_delay(seconds=130e-9-40e-9) # Totally empiric number.
+			else:
+				raise RuntimeError('No oscilloscope found in the setup!')
 			
 	def wait_for_trigger(self):
 		"""Blocks execution until there is a trigger in the oscilloscope."""
 		with self._oscilloscope_Lock:
-			# ~ self._LeCroy.wait_for_single_trigger()
-			self._drs4_evaluation_board.wait_for_single_trigger()
+			if hasattr(self, '_LeCroy'):
+				self._LeCroy.wait_for_single_trigger()
+			elif hasattr(self, '_drs4_evaluation_board'):
+				self._drs4_evaluation_board.wait_for_single_trigger()
+			else:
+				raise RuntimeError('No oscilloscope found in the setup!')
 	
 	def get_waveform(self, channel: int):
 		"""Gets the waveform from the oscilloscope for the respective channel."""
 		with self._oscilloscope_Lock:
-			# ~ return self._LeCroy.get_waveform(channel=channel)
-			waveform_data = self._drs4_evaluation_board.get_waveform(channel)
-			waveform_data['Amplitude (V)'] *= -1
-			return waveform_data
+			if hasattr(self, '_LeCroy'):
+				return self._LeCroy.get_waveform(channel=channel)
+			elif hasattr(self, '_drs4_evaluation_board'):
+				waveform_data = self._drs4_evaluation_board.get_waveform(channel)
+				waveform_data['Amplitude (V)'] *= -1
+				return waveform_data
+			else:
+				raise RuntimeError('No oscilloscope found in the setup!')
 	
 	def set_oscilloscope_vdiv(self, channel: int, vdiv: float):
 		"""Sets the osciloscope's Volts per division."""
-		pass
-		# ~ with self._oscilloscope_Lock:
-			# ~ self._LeCroy.set_vdiv(channel, vdiv)
+		with self._oscilloscope_Lock:
+			if hasattr(self, '_LeCroy'):
+				self._LeCroy.set_vdiv(channel, vdiv)
+			elif hasattr(self, '_drs4_evaluation_board'):
+				warnings.warn(f'Cannot change VDIV of DRS4 Evaluation Board, it is not implemented.')
+			else:
+				raise RuntimeError('No oscilloscope found in the setup!')
 	
 	# Temperature and humidity sensor ----------------------------------
 	
