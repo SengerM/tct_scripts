@@ -10,12 +10,15 @@ class DataFrameDumper:
 	"""This class is for easilly store a continuously growing dataframe
 	in the disk easilly. I tried to create a subclass of DataFrame but
 	it is too cumbersome."""
-	def __init__(self, file_path_in_the_end, df):
+	def __init__(self, file_path_in_the_end, df, dump_if_more_rows_than: int=1e6, dump_if_more_time_than: float=60):
 		self._ended = False
 		self._columns_of_the_df = set(df.columns)
 		self._file_path_in_the_end = Path(file_path_in_the_end)
 		self._temp_files_path = self._file_path_in_the_end.with_suffix('.temp')
 		self._temp_files_path.mkdir(parents=True)
+		self.dump_if_more_rows_than = dump_if_more_rows_than
+		self.dump_if_more_time_than = dump_if_more_time_than
+		self._last_dump_when = datetime.datetime.now()
 		def _atexit():
 			if self._ended == False: # This means that the user forgot to call "end".
 				df = pandas.DataFrame(columns = self._columns_of_the_df)
@@ -28,7 +31,7 @@ class DataFrameDumper:
 				self._ended = True
 		atexit.register(_atexit)
 	
-	def dump_to_disk(self, df):
+	def dump_to_disk(self, df, force=False):
 		"""Stores the dataframe in a temporary file in the disk and returns the dataframe with all rows deleted.
 		Usage:
 		my_df = bla bla bla
@@ -37,11 +40,14 @@ class DataFrameDumper:
 		self._check_ended()
 		if set(df.columns) != self._columns_of_the_df:
 			raise ValueError(f'The columns of the dataframe do not match!')
-		df.reset_index(drop=True).to_feather(self._temp_files_path/Path(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')))
-		return df[0:0]
+		if force==True or len(df.index) > self.dump_if_more_rows_than or (datetime.datetime.now()-self._last_dump_when).seconds > self.dump_if_more_time_than:
+			df.reset_index(drop=True).to_feather(self._temp_files_path/Path(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')))
+			return df[0:0]
+		else:
+			return df
 	
 	def end(self, df):
-		self.dump_to_disk(df) # In case there is any data remaining...
+		self.dump_to_disk(df, force=True) # In case there is any data remaining...
 		df = pandas.DataFrame(columns = self._columns_of_the_df)
 		# Concatenate all files into a single file.
 		for fpath in sorted(self._temp_files_path.iterdir()):
