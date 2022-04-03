@@ -1,5 +1,5 @@
 import numpy as np
-from scan_1D import script_core as scan_1D, DEVICE_CENTER, SCAN_STEP, SCAN_LENGTH, SCAN_ANGLE_DEG
+from scan_1D import script_core as scan_1D, DEVICE_CENTER, SCAN_STEP, SCAN_LENGTH, SCAN_ANGLE_DEG, post_process
 from TheSetup import TheSetup
 import pandas
 from pathlib import Path
@@ -14,8 +14,8 @@ from multiprocessing import Process # https://docs.python.org/3/library/multipro
 
 OSCILLOSCOPE_CHANNELS = [1,2]
 LASER_DAC = 653
-N_TRIGGERS_PER_POSITION = 5
-BIAS_VOLTAGES = np.linspace(111,222,3) # [int(V) for V in utils.interlace(np.linspace(111,500,22))]
+N_TRIGGERS_PER_POSITION = 44
+BIAS_VOLTAGES = [int(V) for V in utils.interlace(np.linspace(99,280,22))][1:]
 
 CURRENT_COMPLIANCE = 11e-6
 
