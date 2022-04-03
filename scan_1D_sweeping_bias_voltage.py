@@ -1,5 +1,5 @@
 import numpy as np
-from scan_1D import script_core as scan_1D, DEVICE_CENTER, SCAN_STEP, SCAN_LENGTH, SCAN_ANGLE_DEG
+from scan_1D import script_core as scan_1D, DEVICE_CENTER, SCAN_STEP, SCAN_LENGTH, SCAN_ANGLE_DEG, post_process
 from TheSetup import TheSetup
 import pandas
 from pathlib import Path
@@ -10,11 +10,12 @@ import plotly.express as px
 import time
 import utils
 import tct_scripts_config
+from multiprocessing import Process # https://docs.python.org/3/library/multiprocessing.html#the-process-class
 
 OSCILLOSCOPE_CHANNELS = [1,2]
 LASER_DAC = 653
-N_TRIGGERS_PER_POSITION = 300
-BIAS_VOLTAGES = np.linspace(600,900,6) # [int(V) for V in utils.interlace(np.linspace(111,500,22))]
+N_TRIGGERS_PER_POSITION = 44
+BIAS_VOLTAGES = [int(V) for V in utils.interlace(np.linspace(99,280,22))][1:]
 
 CURRENT_COMPLIANCE = 11e-6
 
@@ -30,7 +31,7 @@ time.sleep(1)
 
 if 'preview' in Rick.measurement_name.lower():
 	print(f'ENTERING INTO PREVIEW MODE!!!!')
-	STEP = 11e-6
+	SCAN_STEP = 11e-6
 	BIAS_VOLTAGES = [float(input(f'Bias voltage for preview? '))]
 	N_TRIGGERS_PER_POSITION = 4
 
@@ -38,8 +39,8 @@ if input(f'I will use BIAS_VOLTAGES = {BIAS_VOLTAGES} (in volts), is this correc
 	print(f'Your answer was not "YeS", I will exit.')
 	exit()
 
-x = DEVICE_CENTER['x'] + np.arange(-SCAN_LENGTH/2,SCAN_LENGTH/2, STEP)*np.cos(SCAN_ANGLE_DEG*np.pi/180)
-y = DEVICE_CENTER['y'] + np.arange(-SCAN_LENGTH/2,SCAN_LENGTH/2, STEP)*np.sin(SCAN_ANGLE_DEG*np.pi/180)
+x = DEVICE_CENTER['x'] + np.arange(-SCAN_LENGTH/2,SCAN_LENGTH/2, SCAN_STEP)*np.cos(SCAN_ANGLE_DEG*np.pi/180)
+y = DEVICE_CENTER['y'] + np.arange(-SCAN_LENGTH/2,SCAN_LENGTH/2, SCAN_STEP)*np.sin(SCAN_ANGLE_DEG*np.pi/180)
 z = DEVICE_CENTER['z'] + 0*x + 0*y
 positions = []
 for i in range(len(y)):
@@ -83,8 +84,12 @@ with reporter.report_for_loop(len(BIAS_VOLTAGES), f'{Rick.measurement_name}') as
 			positions = positions,
 			n_triggers = N_TRIGGERS_PER_POSITION,
 			acquire_channels = OSCILLOSCOPE_CHANNELS,
-			two_pulses = True,
 		)
+		
+		# Post process in a separate process so the machine can keep on measuring in the meantime...
+		p = Process(target=post_process, args=(measurement_base_path,))
+		p.start() # Hopefully this finishes before the next data acquisition such that the computer does not run out of processing power.
+		
 		with open(Rick.processed_data_dir_path/Path(f'README.txt'),'a') as ofile:
 			print(measurement_base_path.parts[-1],file=ofile)
 		reporter.update(1)

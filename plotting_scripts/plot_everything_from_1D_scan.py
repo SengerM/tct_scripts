@@ -7,19 +7,6 @@ from grafica.plotly_utils.utils import line
 import warnings
 from scipy.stats import median_abs_deviation
 
-def calculate_1D_scan_distance(positions):
-	"""positions: List of positions, e.g. [(1, 4, 2), (2, 5, 2), (3, 7, 2), (4, 9, 2)].
-	returns: List of distances starting with 0 at the first point and assuming linear interpolation."""
-	return [0] + list(np.cumsum((np.diff(positions, axis=0)**2).sum(axis=1)**.5))
-
-def calculate_1D_scan_distance_from_dataframe(df):
-	x = df.groupby('n_position').mean()[f'x (m)']
-	y = df.groupby('n_position').mean()[f'y (m)']
-	z = df.groupby('n_position').mean()[f'z (m)']
-	distances_df = pandas.DataFrame({'n_position': [i for i in range(len(set(df['n_position'])))], 'Distance (m)': calculate_1D_scan_distance(list(zip(x,y,z)))})
-	distances_df.set_index('n_position')
-	return distances_df
-
 def mean_std(df, by):
 	"""Groups by `by` (list of columns), calculates mean and std, and creates one column with mean and another with std for each column not present in `by`.
 	Example
@@ -66,33 +53,25 @@ def calculate_normalized_collected_charge(df):
 			df.loc[(df['n_pulse']==n_pulse)&(df['n_channel']==n_channel), 'Normalized collected charge'] /= scale_factor
 	return df
 
+PLOT_HISTOGRAMS = False
+PLOT_MEAN_STD_PLOTS = False
+
 def script_core(directory):
 	bureaucrat = Bureaucrat(
 		directory,
 		variables = locals(),
 	)
 	
-	for script_name in {'laser_intensity_scan.py','scan_1D.py'}:
-		try:
-			data_df = pandas.read_feather(
-				bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('measured_data.fd'),
-			)
-			break
-		except:
-			pass
-	if 'data_df' not in locals():
-		raise FileNotFoundError(f'Cannot locate a file with measured data...')
-	
-	distances_df = calculate_1D_scan_distance_from_dataframe(data_df)
-	data_df.set_index('n_position', inplace=True)
-	data_df = data_df.merge(distances_df, left_index=True, right_index=True)
-	data_df.reset_index(inplace=True, drop=True)
+	data_df = pandas.read_feather(
+		bureaucrat.processed_by_script_dir_path('parse_waveforms_from_scan.py')/Path('data.fd'),
+	)
 	
 	data_df = calculate_normalized_collected_charge(data_df)
 	
 	GROUP_BY = ['n_position','n_channel','n_pulse','Distance (m)']
 	averaged_by_position_df = mean_std(data_df, by=GROUP_BY)
 	
+<<<<<<< ours
 	# ~ mean_std_plots_dir_Path = bureaucrat.processed_data_dir_path/Path('mean_std_plots')
 	# ~ mean_std_plots_dir_Path.mkdir(parents=True, exist_ok=True)
 	# ~ for column in averaged_by_position_df:
@@ -109,6 +88,25 @@ def script_core(directory):
 			# ~ title = f'{column}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
 		# ~ )
 		# ~ fig.write_html(str(mean_std_plots_dir_Path/Path(f'{column}.html')), include_plotlyjs='cdn')
+=======
+	if PLOT_MEAN_STD_PLOTS:
+		mean_std_plots_dir_Path = bureaucrat.processed_data_dir_path/Path('mean_std_plots')
+		mean_std_plots_dir_Path.mkdir(parents=True, exist_ok=True)
+		for column in averaged_by_position_df:
+			if column in GROUP_BY:
+				continue
+			fig = line(
+				data_frame = averaged_by_position_df,
+				x = 'Distance (m)',
+				y = column,
+				color = 'n_channel',
+				line_dash = 'n_pulse',
+				symbol = 'n_pulse',
+				markers = True,
+				title = f'{column}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
+			)
+			fig.write_html(str(mean_std_plots_dir_Path/Path(f'{column}.html')), include_plotlyjs='cdn')
+>>>>>>> theirs
 	
 	error_band_plots_dir_Path = bureaucrat.processed_data_dir_path/Path('error_band_plots')
 	error_band_plots_dir_Path.mkdir(parents=True, exist_ok=True)
@@ -156,6 +154,7 @@ def script_core(directory):
 			fig.write_html(str(error_band_plots_dir_Path/Path(f'Total collected charge CH{ch_A} and CH{ch_B}.html')), include_plotlyjs='cdn')
 	
 	# Histograms with sliders for the position ---
+<<<<<<< ours
 	# ~ for column in {'Amplitude (V)','Noise (V)','Rise time (s)','Collected charge (V s)','Time over noise (s)','t_10 (s)','t_50 (s)','t_90 (s)'}:
 		# ~ if column in {'n_position', 'n_trigger', 'n_channel', 'n_pulse', 'x (m)', 'y (m)', 'z (m)', 'Distance (m)'}:
 			# ~ continue
@@ -195,6 +194,53 @@ def script_core(directory):
 	# ~ fig.update_yaxes(range=[average_waveforms_df['Amplitude mean (V)'].min(), average_waveforms_df['Amplitude mean (V)'].max()])
 	# ~ fig.update_layout(transition={'duration': 1})
 	# ~ fig.write_html(str(bureaucrat.processed_data_dir_path/Path('waveforms.html')), include_plotlyjs='cdn')
+=======
+	if PLOT_HISTOGRAMS:
+		for column in {'Amplitude (V)','Noise (V)','Rise time (s)','Collected charge (V s)','Time over noise (s)','t_10 (s)','t_50 (s)','t_90 (s)'}:
+			if column in {'n_position', 'n_trigger', 'n_channel', 'n_pulse', 'x (m)', 'y (m)', 'z (m)', 'Distance (m)'}:
+				continue
+			figure_title = f'{column.split("(")[0]} distribution vs position'
+			fig = px.histogram(
+				data_df,
+				x = column,
+				title = f'{figure_title}<br><sup>Measurement {bureaucrat.measurement_name}</sup>',
+				barmode = 'overlay',
+				animation_frame = 'n_position',
+				color = 'n_pulse',
+				facet_row = 'n_channel',
+				range_x = [min(data_df[column]), max(data_df[column])],
+			)
+			fig["layout"].pop("updatemenus")
+			fig.update_traces(
+				xbins = dict(
+					start = min(data_df[column]),
+					end = max(data_df[column]),
+					size = (max(data_df[column])-min(data_df[column]))/99,
+				),
+			)
+			ofilepath = bureaucrat.processed_data_dir_path/Path('histograms')/Path(figure_title+'.html')
+			ofilepath.parent.absolute().mkdir(parents=True, exist_ok=True)
+			fig.write_html(str(ofilepath), include_plotlyjs='cdn')
+	
+	try:
+		average_waveforms_df = pandas.read_feather(bureaucrat.processed_by_script_dir_path('scan_1D.py')/Path('average_waveforms.fd'))
+		fig = line(
+			title = f'Waveforms<br><sup>Measurement {bureaucrat.measurement_name}</sup>',
+			data_frame = average_waveforms_df,
+			x = 'Time (s)',
+			y = 'Amplitude mean (V)',
+			color = 'n_pulse',
+			animation_frame = 'n_position',
+			facet_row = 'n_channel',
+		)
+		fig.update_yaxes(range=[average_waveforms_df['Amplitude mean (V)'].min(), average_waveforms_df['Amplitude mean (V)'].max()])
+		fig.update_layout(transition={'duration': 1})
+		fig.write_html(str(bureaucrat.processed_data_dir_path/Path('waveforms.html')), include_plotlyjs='cdn')
+	except FileNotFoundError:
+		pass
+	
+	return bureaucrat.measurement_base_path
+>>>>>>> theirs
 	
 if __name__ == '__main__':
 	import argparse
