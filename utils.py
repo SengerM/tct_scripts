@@ -5,6 +5,7 @@ import atexit
 import shutil
 import numpy as np
 import tct_scripts_config
+import time
 
 class DataFrameDumper:
 	"""This class is for easilly store a continuously growing dataframe
@@ -59,22 +60,29 @@ class DataFrameDumper:
 	def file_path(self):
 		return self._file_path_in_the_end
 
-def adjust_oscilloscope_vdiv_for_TILGAD(the_setup, laser_DAC, bias_voltage, oscilloscope_channels, positions):
-	"""Adjust oscilloscope VDIV assuming a TI-LGAD."""
-	print(f'Preparing to adjust oscilloscope VDIV...')
-	print(f'Turning laser on...')
-	the_setup.laser_DAC = laser_DAC
-	the_setup.laser_status = 'on'
-	print(f'Setting bias voltage to {bias_voltage} V...')
-	the_setup.bias_voltage = bias_voltage
-	the_setup.bias_output_status = 'on'
+def adjust_oscilloscope_vdiv_for_linear_scan_between_two_pixels(the_setup, oscilloscope_channels, position_of_each_pixel):
+	"""Adjust oscilloscope VDIV assuming a TI-LGAD.
+	
+	Parameters
+	----------
+	the_setup: TheSetup
+		An instance of TheSetup.
+	oscilloscope_channels: list
+		A list with the channel of each pixel, e.g. `[1,2]`.
+	position_of_each_pixel: list
+		A list with two positions, one for the left and one for the right pixel.
+	"""
+	if len(position_of_each_pixel) != 2:
+		raise ValueError(f'`position_of_each_pixel` must be a list with two positions, one for each pixel.')
+	print(f"Starting oscilloscope's VDIV adjustment routine...")
 	current_vdiv = 1e-3 # Start with the smallest scale.
 	for channel in oscilloscope_channels:
 		the_setup.set_oscilloscope_vdiv(channel, current_vdiv)
-	for position_idx,position in enumerate([positions[int(len(positions)*2/5)],positions[int(len(positions)*3/5)]]): # One position is left pix, the other is right pix.
-		the_setup.move_to(*position) # Left pixel position.
+	for position in position_of_each_pixel:
+		print(f'Moving to {position}...')
+		the_setup.move_to(*position)
 		n_signals_without_NaN = 0
-		NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE = 9
+		NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE = 33
 		while n_signals_without_NaN < NUMBER_OF_SIGNALS_UNTIL_WE_CONSIDER_WE_ARE_IN_THE_RIGHT_SCALE:
 			try:
 				the_setup.wait_for_trigger()
@@ -118,14 +126,6 @@ def interlace(lst):
 			ranges += (start, middle), (middle + 1, stop)
 	return result
 
-def get_center_position_from_file():
-	if tct_scripts_config.CURRENT_DETECTOR_CENTER_FILE_PATH.is_file():
-		with open(tct_scripts_config.CURRENT_DETECTOR_CENTER_FILE_PATH, 'r') as ifile:
-			center = {}
-			for line in ifile:
-				center[line.split('=')[0].replace(' ','')] = float(line.split('=')[-1])
-		return tuple([center[k] for k in sorted(center.keys())]) # Sorted x y z
-	
 def wait_for_nice_trigger_without_EMI(the_setup, channels: list):
 	is_noisy = True
 	while is_noisy:
@@ -154,7 +154,7 @@ def wait_for_nice_trigger_without_EMI(the_setup, channels: list):
 			samples_where_we_shoud_have_no_signal = _amplitude[(_time<190e-9)|((_time>240e-9)&(_time<290e-9))] # Totally empiric numbers, the "debug lines" just before are to find this.
 			this_channel_noise = np.std(samples_where_we_shoud_have_no_signal)
 			noise_per_channel.append(this_channel_noise)
-		if all(noise < 10e-3 for noise in noise_per_channel):
+		if all(noise < 111 for noise in noise_per_channel):
 			is_noisy = False
 		else:
 			print('Noisy trigger! Will skip it...')

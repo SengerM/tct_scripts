@@ -113,16 +113,23 @@ def script_core(
 
 ########################################################################
 
+# The following things are defined here such that they can be imported from other scripts.
+
+DEVICE_CENTER = {
+	# The values here are those shown in the graphic interface.
+	'x': -3.7927343749999998e-3, 
+	'y': 0.4559765625e-3, 
+	'z': 71.41471e-3
+}
+SCAN_STEP = 1e-6 # meters
+SCAN_LENGTH = 380e-6 # meters
+SCAN_ANGLE_DEG = 45 # deg
+
 if __name__ == '__main__':
 	import numpy as np
 	
-	CENTER = {'x': -5.222646484375e-3, 'y': 1.0052441406250001e-3, 'z': 71.41140625e-3}
-	
-	STEP = 10e-6 # meters
-	SCAN_LENGTH = 250e-6 # meters
-	
-	x = np.arange(CENTER['x'] - SCAN_LENGTH/2, CENTER['x'] + SCAN_LENGTH/2, STEP)
-	y = CENTER['y'] + 0*x
+	x = DEVICE_CENTER['x'] + np.arange(-SCAN_LENGTH/2,SCAN_LENGTH/2, STEP)*np.cos(SCAN_ANGLE_DEG*np.pi/180)
+	y = DEVICE_CENTER['y'] + np.arange(-SCAN_LENGTH/2,SCAN_LENGTH/2, STEP)*np.sin(SCAN_ANGLE_DEG*np.pi/180)
 	z = CENTER['z'] + 0*x
 	positions = []
 	for i in range(len(y)):
@@ -131,8 +138,8 @@ if __name__ == '__main__':
 	script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
-		bias_voltage = 500,
-		laser_DAC = 0,
+		bias_voltage = 111,
+		laser_DAC = 630,
 		positions = positions,
 		n_triggers = 55,
 		acquire_channels = [1,2],
