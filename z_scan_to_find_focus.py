@@ -9,34 +9,24 @@ from grafica.plotly_utils.utils import line as grafica_line
 
 STEP_SIZE = 22e-6
 SWEEP_LENGTH = 8e-3/5
-CHANNEL = 2
+Z_MIDDLE = 71.42597656250001e-3
 
 the_setup = TheSetup()
 
-with open(tct_scripts_config.CURRENT_DETECTOR_CENTER_FILE_PATH, 'r') as ifile:
-	center = {}
-	for line in ifile:
-		center[line.split('=')[0].replace(' ','')] = float(line.split('=')[-1])
-center = tuple([center[k] for k in sorted(center.keys())]) # Sorted x y z
-print(f'Current position is {the_setup.position}.')
-position_where_to_scan_z = np.array(center) + 55e-6*np.array((1,-1,0))/2**.5 + 22e-6/2**.5*np.array((1,1,0))
-print(f'Will move to {position_where_to_scan_z}.')
-the_setup.move_to(*position_where_to_scan_z)
-
 current_position = the_setup.position
 
-z_positions = np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE)) + current_position[2]
+z_positions = np.linspace(-SWEEP_LENGTH/2,SWEEP_LENGTH/2,int(SWEEP_LENGTH/STEP_SIZE)) + Z_MIDDLE
 x_positions = z_positions*0 + current_position[0]
 y_positions = z_positions*0 + current_position[1]
 
 measurement_base_path = linear_scan(
 	measurement_name = input('Measurement name? ').replace(' ', '_'),
 	the_setup = the_setup,
-	bias_voltage = 333,
-	laser_DAC = 573,
+	bias_voltage = 99,
+	laser_DAC = 610,
 	positions = list(zip(x_positions,y_positions,z_positions)),
-	n_triggers = 33,
-	acquire_channels = [CHANNEL],
+	n_triggers = 44,
+	acquire_channels = [1,2],
 )
 
 bureaucrat = Bureaucrat(
