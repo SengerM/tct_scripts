@@ -83,7 +83,6 @@ with reporter.report_for_loop(len(BIAS_VOLTAGES), f'{Rick.measurement_name}') as
 			positions = positions,
 			n_triggers = N_TRIGGERS_PER_POSITION,
 			acquire_channels = OSCILLOSCOPE_CHANNELS,
-			two_pulses = True,
 		)
 		with open(Rick.processed_data_dir_path/Path(f'README.txt'),'a') as ofile:
 			print(measurement_base_path.parts[-1],file=ofile)
