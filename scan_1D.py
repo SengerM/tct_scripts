@@ -10,12 +10,17 @@ import utils
 import tct_scripts_config
 from parse_waveforms_from_scan import script_core as parse_waveforms
 from plotting_scripts.plot_everything_from_1D_scan import script_core as plot_measurement
+import sqlite3
 
-def post_process(measurement_base_path: Path):
-	print(f'Launching post-processing of {measurement_base_path.parts[-1]}...')
-	parse_waveforms(measurement_base_path, silent=True)
+def post_process(measurement_base_path: Path, silent=True):
+	if not silent:
+		print(f'Launching post-processing of {measurement_base_path.parts[-1]}...')
+	parse_waveforms(measurement_base_path, silent)
+	if not silent:
+		print(f'Plotting {measurement_base_path.parts[-1]}...')
 	plot_measurement(measurement_base_path)
-	print(f'Post-processing of {measurement_base_path.parts[-1]} finished!')
+	if not silent:
+		print(f'Post-processing of {measurement_base_path.parts[-1]} finished!')
 
 def script_core(
 		measurement_name: str, 
@@ -27,12 +32,10 @@ def script_core(
 		acquire_channels = [1,2,3,4],
 	):
 	Raúl = Bureaucrat(
-		str(tct_scripts_config.DATA_STORAGE_DIRECTORY_PATH/Path(measurement_name)),
+		tct_scripts_config.DATA_STORAGE_DIRECTORY_PATH/Path(measurement_name),
 		variables = locals(),
 		new_measurement = True,
 	)
-	DIRECTORY_TO_STORE_WAVEFORMS = Raúl.processed_data_dir_path/Path('measured_waveforms')
-	DIRECTORY_TO_STORE_WAVEFORMS.mkdir(parents=True, exist_ok=True)
 	
 	reporter = TelegramReporter(
 		telegram_token = my_telegram_bots.robobot.token, 
@@ -51,6 +54,7 @@ def script_core(
 		the_setup.bias_voltage = bias_voltage
 		the_setup.bias_output_status = 'on'
 		
+		sqlite3_connection = sqlite3.connect(Raúl.processed_data_dir_path/Path('waveforms.sqlite'))
 		waveforms_df = pandas.DataFrame()
 		
 		with reporter.report_for_loop(len(positions)*n_triggers, f'{Raúl.measurement_name}') as reporter:
@@ -110,14 +114,13 @@ def script_core(
 								ignore_index = True,
 							)
 							n_waveform += 1
-					if len(waveforms_df.index) > 1e6:
-						waveforms_df.reset_index().to_feather(DIRECTORY_TO_STORE_WAVEFORMS/Path(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')+'.fd'))
+					if len(waveforms_df.index) > 1e6 or (n_position == len(positions)-1 and n_trigger == n_triggers-1):
+						print(f'Saving data into database...')
+						waveforms_df.to_sql('waveforms', sqlite3_connection, index=False, if_exists='append')
 						waveforms_df = pandas.DataFrame()
 					reporter.update(1)
-		# Save remaining data ---
-		waveforms_df.reset_index().to_feather(DIRECTORY_TO_STORE_WAVEFORMS/Path(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')+'.fd'))
 		
-		return Raúl.measurement_base_path
+	return Raúl.measurement_base_path
 
 ########################################################################
 
@@ -125,20 +128,22 @@ def script_core(
 
 DEVICE_CENTER = {
 	# The values here are those shown in the graphic interface.
-	'x': -3.7927343749999998e-3, 
-	'y': 0.4559765625e-3, 
-	'z': 71.41471e-3
+	'x': -5.453974609375e-3, 
+	'y': 1.0010644531250001e-3, 
+	'z': 71.41140625e-3
 }
-SCAN_STEP = 1e-6 # meters
-SCAN_LENGTH = 380e-6 # meters
-SCAN_ANGLE_DEG = 45 # deg
+SCAN_STEP = 11e-6 # meters
+SCAN_LENGTH = 270e-6 # meters
+SCAN_ANGLE_DEG = 0 # deg
+LASER_DAC = 0
+N_TRIGGERS_PER_POSITION = 33
 
 if __name__ == '__main__':
 	import numpy as np
 	
-	x = DEVICE_CENTER['x'] + np.arange(-SCAN_LENGTH/2,SCAN_LENGTH/2, STEP)*np.cos(SCAN_ANGLE_DEG*np.pi/180)
-	y = DEVICE_CENTER['y'] + np.arange(-SCAN_LENGTH/2,SCAN_LENGTH/2, STEP)*np.sin(SCAN_ANGLE_DEG*np.pi/180)
-	z = CENTER['z'] + 0*x
+	x = DEVICE_CENTER['x'] + np.arange(-SCAN_LENGTH/2,SCAN_LENGTH/2, SCAN_STEP)*np.cos(SCAN_ANGLE_DEG*np.pi/180)
+	y = DEVICE_CENTER['y'] + np.arange(-SCAN_LENGTH/2,SCAN_LENGTH/2, SCAN_STEP)*np.sin(SCAN_ANGLE_DEG*np.pi/180)
+	z = DEVICE_CENTER['z'] + 0*x + 0*y
 	positions = []
 	for i in range(len(y)):
 		positions.append( [ x[i],y[i],z[i] ] )
@@ -147,9 +152,9 @@ if __name__ == '__main__':
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = TheSetup(),
 		bias_voltage = 111,
-		laser_DAC = 630,
+		laser_DAC = LASER_DAC,
 		positions = positions,
-		n_triggers = 55,
+		n_triggers = N_TRIGGERS_PER_POSITION,
 		acquire_channels = [1,2],
 	)
-	post_process(measurement_base_path)
+	post_process(measurement_base_path, silent=False)
