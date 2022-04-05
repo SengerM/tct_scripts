@@ -153,6 +153,20 @@ def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dic
 					
 					data_df = data_df.append(pandas.Series(parsed_data_dict), ignore_index = True)
 					
+					if np.random.rand() < 40/number_of_waveforms_to_process: # Produce a control plot for the current waveform...
+						fig = draw_in_plotly(signal)
+						fig.update_layout(
+							title = f'Control plot n_waveform {n_waveform}, n_position {parsed_data_dict["n_position"]}, n_trigger {parsed_data_dict["n_trigger"]}, n_pulse {parsed_data_dict["n_pulse"]}, n_channel {parsed_data_dict["n_channel"]}<br><sup>Measurement: {Quique.measurement_name}</sup>',
+							xaxis_title = "Time (s)",
+							yaxis_title = "Amplitude (V)",
+						)
+						CONTROL_PLOTS_FOR_SIGNAL_PROCESSING_DIR_PATH = Quique.processed_data_dir_path/Path('plots with a random selection of the waveforms')
+						CONTROL_PLOTS_FOR_SIGNAL_PROCESSING_DIR_PATH.mkdir(exist_ok=True)
+						fig.write_html(
+							str(CONTROL_PLOTS_FOR_SIGNAL_PROCESSING_DIR_PATH/Path(f'n_waveform {n_waveform}.html')),
+							include_plotlyjs = 'cdn',
+						)
+					
 					highest_n_waveform_already_processed = waveforms_df['n_waveform'].max()
 					if telegram_reporter_data_dict is not None:
 						telegram_reporter.update(1)
