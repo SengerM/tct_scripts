@@ -63,7 +63,17 @@ def generate_column_with_distances(df):
 	)
 	return distances_df.set_index('n_position')
 
-def script_core(directory: Path, silent: bool = True):
+def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dict: dict = None):
+	"""
+	Parameters
+	----------
+	telegram_reporter_data_dict
+		A dictionary of the form
+		```
+		{'token': str, 'chat_id': str}
+		```
+		If `None` then it is not used.
+	"""
 	if not isinstance(silent, bool):
 		raise ValueError(f'`silent` must be of type {repr(type(True))}, received object of type {repr(type(silent))}.')
 	
@@ -86,52 +96,86 @@ def script_core(directory: Path, silent: bool = True):
 	sqlite3_connection_output = sqlite3.connect(Quique.processed_data_dir_path/Path('data.sqlite'))
 	sqlite3_connection_waveforms = sqlite3.connect(Quique.processed_by_script_dir_path('scan_1D.py')/Path('waveforms.sqlite'))
 	
+	if telegram_reporter_data_dict is not None:
+		from contextlib import ExitStack # https://stackoverflow.com/a/34798330/8849755
+		from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
+		telegram_reporter = TelegramReporter(telegram_token=telegram_reporter_data_dict['token'], telegram_chat_id=telegram_reporter_data_dict['chat_id'])
+	
 	with Quique.verify_no_errors_context():
-		waveforms_df = pandas.read_sql_query('SELECT * from `waveforms`', sqlite3_connection_waveforms)
-		number_of_waveforms_to_process = len(set(waveforms_df['n_waveform']))
-		for n_waveform in set(waveforms_df['n_waveform']): # We have to process each waveform one by one, there is no alternative. This will take time...
-			if not silent:
-				print(f'Processing n_waveform {n_waveform} out of {number_of_waveforms_to_process-1}...')
-			this_waveform_rows = waveforms_df['n_waveform'] == n_waveform
-			signal = PeakSignal(
-				time = waveforms_df.loc[this_waveform_rows,'Time (s)'],
-				samples = waveforms_df.loc[this_waveform_rows,'Amplitude (V)'],
-			)
-			
-			parsed_data_dict = {
-				'n_waveform': n_waveform,
-				'Amplitude (V)': signal.amplitude,
-				'Noise (V)': signal.noise,
-				'Rise time (s)': signal.rise_time,
-				'Collected charge (V s)': signal.peak_integral,
-				'Time over noise (s)': signal.time_over_noise,
-			}
-			for pp in TIMES_AT:
-				try:
-					_time = signal.find_time_at_rising_edge(pp)
-				except KeyboardInterrupt:
-					raise KeyboardInterrupt
-				except Exception as e:
-					_time = float('NaN')
-				parsed_data_dict[f't_{pp} (s)'] = _time
-			parsed_data_dict = {
-				**parsed_data_dict, 
-				**waveforms_df.loc[this_waveform_rows, COPY_THESE_COLUMNS].iloc[0].to_dict()
-			}
-			
-			data_df = data_df.append(pandas.Series(parsed_data_dict), ignore_index = True)
-			
-			if len(data_df.index) > 1e6 or n_waveform == number_of_waveforms_to_process-1:
-				data_df.to_sql('parsed_data', sqlite3_connection_output, index=False, if_exists='append')
-				data_df = pandas.DataFrame()
+		# Because the file may be too large (several GB) we process the waveforms in batches.
+		if not silent:
+			print(f'Reading the total number of waveforms to process...')
+		sqlite3_cursor_waveforms = sqlite3_connection_waveforms.cursor()
+		sqlite3_cursor_waveforms.execute('SELECT max(n_waveform) from waveforms')
+		number_of_waveforms_to_process = sqlite3_cursor_waveforms.fetchone()[0]
+		
+		NUMBER_OF_WAVEFORMS_IN_EACH_BATCH = 9999
+		number_of_batches = number_of_waveforms_to_process//NUMBER_OF_WAVEFORMS_IN_EACH_BATCH + 1 if number_of_waveforms_to_process%NUMBER_OF_WAVEFORMS_IN_EACH_BATCH != 0 else 0
+		
+		if not silent:
+			print(f'A total of {number_of_waveforms_to_process} waveforms will be processed in {number_of_batches} batches.')
+		
+		with ExitStack() as stack:
+			if telegram_reporter_data_dict is not None:
+				telegram_reporter = stack.enter_context(
+					telegram_reporter.report_for_loop(number_of_waveforms_to_process, f'Waveforms parsing for measurement {Quique.measurement_name}')
+				)
+			highest_n_waveform_already_processed = -1
+			for n_batch in range(number_of_batches):
+				if not silent:
+					print(f'Reading waveforms for n_batch {n_batch}...')
+				waveforms_df = pandas.read_sql_query(f'SELECT * from waveforms where (n_waveform>{highest_n_waveform_already_processed} and n_waveform<={highest_n_waveform_already_processed+NUMBER_OF_WAVEFORMS_IN_EACH_BATCH})', sqlite3_connection_waveforms)
+				for n_waveform in set(waveforms_df['n_waveform']): # We have to process each waveform one by one, there is no alternative. This will take time...
+					if not silent:
+						print(f'Processing n_waveform {n_waveform} out of {number_of_waveforms_to_process-1}...')
+					this_waveform_rows = waveforms_df['n_waveform'] == n_waveform
+					signal = PeakSignal(
+						time = waveforms_df.loc[this_waveform_rows,'Time (s)'],
+						samples = waveforms_df.loc[this_waveform_rows,'Amplitude (V)'],
+					)
+					
+					parsed_data_dict = {
+						'n_waveform': n_waveform,
+						'Amplitude (V)': signal.amplitude,
+						'Noise (V)': signal.noise,
+						'Rise time (s)': signal.rise_time,
+						'Collected charge (V s)': signal.peak_integral,
+						'Time over noise (s)': signal.time_over_noise,
+					}
+					for pp in TIMES_AT:
+						try:
+							_time = signal.find_time_at_rising_edge(pp)
+						except KeyboardInterrupt:
+							raise KeyboardInterrupt
+						except Exception as e:
+							_time = float('NaN')
+						parsed_data_dict[f't_{pp} (s)'] = _time
+					parsed_data_dict = {
+						**parsed_data_dict, 
+						**waveforms_df.loc[this_waveform_rows, COPY_THESE_COLUMNS].iloc[0].to_dict()
+					}
+					
+					data_df = data_df.append(pandas.Series(parsed_data_dict), ignore_index = True)
+					
+					highest_n_waveform_already_processed = waveforms_df['n_waveform'].max()
+					if telegram_reporter_data_dict is not None:
+						telegram_reporter.update(1)
+					
+					if len(data_df.index) > 10e3 or n_waveform == number_of_waveforms_to_process-1:
+						if not silent:
+							print('Saving parsed data...')
+						data_df.to_sql('parsed_data', sqlite3_connection_output, index=False, if_exists='append')
+						data_df = pandas.DataFrame()
 		
 		# Add the column `Distance (m)` to the data so it does not has to be calculated later on...
+		if not silent:
+			print('Calculating `Distance (m)` column and adding it to the parsed data...')
 		data_df = pandas.read_sql_query('SELECT * from `parsed_data`', sqlite3_connection_output)
 		data_df = data_df.set_index('n_position')
 		data_df['Distance (m)'] = generate_column_with_distances(data_df)['Distance (m)']
 		data_df = data_df.reset_index()
 		data_df.to_sql('parsed_data', sqlite3_connection_output, index=False, if_exists='replace')
-			
+				
 		if not silent:
 			print('Finished processing!')
 		
@@ -139,6 +183,7 @@ def script_core(directory: Path, silent: bool = True):
 
 if __name__ == '__main__':
 	import argparse
+	import my_telegram_bots
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--dir',
@@ -149,4 +194,8 @@ if __name__ == '__main__':
 		type = str,
 	)
 	args = parser.parse_args()
-	script_core(Path(args.directory), silent=False)
+	script_core(
+		Path(args.directory), 
+		silent = False,
+		telegram_reporter_data_dict = {'token': my_telegram_bots.robobot.token, 'chat_id': my_telegram_bots.chat_ids['Robobot TCT setup']}
+	)
