@@ -5,6 +5,7 @@ from bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/bureau
 import plotly.express as px
 from signals.PeakSignal import PeakSignal, draw_in_plotly
 import sqlite3
+from contextlib import ExitStack # https://stackoverflow.com/a/34798330/8849755
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
 
@@ -97,7 +98,6 @@ def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dic
 	sqlite3_connection_waveforms = sqlite3.connect(Quique.processed_by_script_dir_path('scan_1D.py')/Path('waveforms.sqlite'))
 	
 	if telegram_reporter_data_dict is not None:
-		from contextlib import ExitStack # https://stackoverflow.com/a/34798330/8849755
 		from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
 		telegram_reporter = TelegramReporter(telegram_token=telegram_reporter_data_dict['token'], telegram_chat_id=telegram_reporter_data_dict['chat_id'])
 	
@@ -109,7 +109,7 @@ def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dic
 		sqlite3_cursor_waveforms.execute('SELECT max(n_waveform) from waveforms')
 		number_of_waveforms_to_process = sqlite3_cursor_waveforms.fetchone()[0]
 		
-		NUMBER_OF_WAVEFORMS_IN_EACH_BATCH = 9999
+		NUMBER_OF_WAVEFORMS_IN_EACH_BATCH = 3333 # This depends on the amount of memory you want to use...
 		number_of_batches = number_of_waveforms_to_process//NUMBER_OF_WAVEFORMS_IN_EACH_BATCH + 1 if number_of_waveforms_to_process%NUMBER_OF_WAVEFORMS_IN_EACH_BATCH != 0 else 0
 		
 		if not silent:
