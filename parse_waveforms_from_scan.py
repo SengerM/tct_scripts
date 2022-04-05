@@ -115,11 +115,7 @@ def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dic
 		if not silent:
 			print(f'A total of {number_of_waveforms_to_process} waveforms will be processed in {number_of_batches} batches.')
 		
-		with ExitStack() as stack:
-			if telegram_reporter_data_dict is not None:
-				telegram_reporter = stack.enter_context(
-					telegram_reporter.report_for_loop(number_of_waveforms_to_process, f'Waveforms parsing for measurement {Quique.measurement_name}')
-				)
+		with telegram_reporter.report_for_loop(number_of_waveforms_to_process, f'Waveforms parsing for measurement {Quique.measurement_name}') if telegram_reporter_data_dict is not None else ExitStack() as telegram_reporter:
 			highest_n_waveform_already_processed = -1
 			for n_batch in range(number_of_batches):
 				if not silent:
