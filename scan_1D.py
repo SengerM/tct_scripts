@@ -8,7 +8,7 @@ import pandas
 import datetime
 import utils
 import tct_scripts_config
-from parse_waveforms_from_scan import script_core as parse_waveforms
+from parse_waveforms_from_scan_1D import script_core as parse_waveforms
 from plotting_scripts.plot_everything_from_1D_scan import script_core as plot_measurement
 import sqlite3
 
@@ -135,7 +135,7 @@ DEVICE_CENTER = {
 SCAN_STEP = 11e-6 # meters
 SCAN_LENGTH = 270e-6 # meters
 SCAN_ANGLE_DEG = 0 # deg
-LASER_DAC = 0
+LASER_DAC = 630
 N_TRIGGERS_PER_POSITION = 33
 
 if __name__ == '__main__':
@@ -148,10 +148,13 @@ if __name__ == '__main__':
 	for i in range(len(y)):
 		positions.append( [ x[i],y[i],z[i] ] )
 	
+	print('Connecting with the instruments...')
+	the_setup = TheSetup()
+	
 	measurement_base_path = script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
-		the_setup = TheSetup(),
-		bias_voltage = 111,
+		the_setup = the_setup,
+		bias_voltage = 555,
 		laser_DAC = LASER_DAC,
 		positions = positions,
 		n_triggers = N_TRIGGERS_PER_POSITION,

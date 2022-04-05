@@ -6,7 +6,6 @@ import pandas
 from grafica.plotly_utils.utils import line
 import warnings
 from scipy.stats import median_abs_deviation
-import sqlite3
 
 def mean_std(df, by):
 	"""Groups by `by` (list of columns), calculates mean and std, and creates one column with mean and another with std for each column not present in `by`.
@@ -63,8 +62,7 @@ def script_core(directory: Path):
 		variables = locals(),
 	)
 	
-	sqlite3_connection = sqlite3.connect(bureaucrat.processed_by_script_dir_path('parse_waveforms_from_scan.py')/Path('data.sqlite'))
-	data_df = pandas.read_sql_query('SELECT * from `parsed_data`', sqlite3_connection)
+	data_df = pandas.read_feather(bureaucrat.processed_by_script_dir_path('parse_waveforms_from_scan_1D.py')/Path('data.fd'))
 	
 	data_df = calculate_normalized_collected_charge(data_df)
 	

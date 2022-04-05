@@ -94,7 +94,8 @@ def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dic
 	data_frame_columns += COPY_THESE_COLUMNS
 	data_df = pandas.DataFrame(columns = data_frame_columns)
 	
-	sqlite3_connection_output = sqlite3.connect(Quique.processed_data_dir_path/Path('data.sqlite'))
+	TEMPORARY_DATABASE_WHILE_PROCESSING_PATH = Quique.processed_data_dir_path/Path('data.sqlite')
+	sqlite3_connection_temporary_database = sqlite3.connect(TEMPORARY_DATABASE_WHILE_PROCESSING_PATH)
 	sqlite3_connection_waveforms = sqlite3.connect(Quique.processed_by_script_dir_path('scan_1D.py')/Path('waveforms.sqlite'))
 	
 	if telegram_reporter_data_dict is not None:
@@ -115,7 +116,7 @@ def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dic
 		if not silent:
 			print(f'A total of {number_of_waveforms_to_process} waveforms will be processed in {number_of_batches} batches.')
 		
-		with telegram_reporter.report_for_loop(number_of_waveforms_to_process, f'Waveforms parsing for measurement {Quique.measurement_name}') if telegram_reporter_data_dict is not None else ExitStack() as telegram_reporter:
+		with telegram_reporter.report_for_loop(number_of_waveforms_to_process-1, f'Waveforms parsing for measurement {Quique.measurement_name}') if telegram_reporter_data_dict is not None else ExitStack() as telegram_reporter:
 			highest_n_waveform_already_processed = -1
 			for n_batch in range(number_of_batches):
 				if not silent:
@@ -174,17 +175,18 @@ def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dic
 					if len(data_df.index) > 10e3 or n_waveform == number_of_waveforms_to_process-1:
 						if not silent:
 							print('Saving parsed data...')
-						data_df.to_sql('parsed_data', sqlite3_connection_output, index=False, if_exists='append')
+						data_df.to_sql('parsed_data', sqlite3_connection_temporary_database, index=False, if_exists='append')
 						data_df = pandas.DataFrame()
 		
 		# Add the column `Distance (m)` to the data so it does not has to be calculated later on...
 		if not silent:
 			print('Calculating `Distance (m)` column and adding it to the parsed data...')
-		data_df = pandas.read_sql_query('SELECT * from `parsed_data`', sqlite3_connection_output)
+		data_df = pandas.read_sql_query('SELECT * from `parsed_data`', sqlite3_connection_temporary_database)
 		data_df = data_df.set_index('n_position')
 		data_df['Distance (m)'] = generate_column_with_distances(data_df)['Distance (m)']
 		data_df = data_df.reset_index()
-		data_df.to_sql('parsed_data', sqlite3_connection_output, index=False, if_exists='replace')
+		data_df.reset_index(drop=True).to_feather(Quique.processed_data_dir_path/Path('data.fd'))
+		TEMPORARY_DATABASE_WHILE_PROCESSING_PATH.unlink() # Delete it now.
 				
 		if not silent:
 			print('Finished processing!')
