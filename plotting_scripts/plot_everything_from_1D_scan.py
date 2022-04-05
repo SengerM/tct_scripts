@@ -121,13 +121,14 @@ def script_core(directory: Path):
 				these_channels_df.loc[these_channels_df['n_channel']==ch,'Channel'] = f'CH{ch}'
 			summed_and_averaged_df.loc[(summed_and_averaged_df['n_channel']!=ch_A)&(summed_and_averaged_df['n_channel']!=ch_B),'Channel'] = f'CH{ch_A}+CH{ch_B}'
 			df = these_channels_df.append(summed_and_averaged_df, ignore_index=True)
+			
 			fig = line(
 				data_frame = df,
 				x = 'Distance (m)',
 				y = 'Normalized collected charge median',
 				error_y = 'Normalized collected charge MAD_std',
 				error_y_mode = 'band',
-				color = 'Channel',
+				color = 'n_channel', # Here it should be "Channel", but today it started to fail and I don't have time right now to fix this...
 				line_dash = 'n_pulse',
 				symbol = 'n_pulse',
 				title = f'Total collected charge CH{ch_A} and CH{ch_B}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
