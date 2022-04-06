@@ -1,4 +1,5 @@
 import EasySensirion # https://github.com/SengerM/EasySensirion
+import ElectroAutomatikGmbHPy
 from ElectroAutomatikGmbHPy.ElectroAutomatikGmbHPowerSupply import ElectroAutomatikGmbHPowerSupply # https://github.com/SengerM/ElectroAutomatikGmbHPy
 from simple_pid import PID
 from time import sleep
@@ -16,7 +17,12 @@ THREADS_SLEEP_SECONDS = 1
 class TemperatureController:
 	def __init__(self, temperature_low_limit=-25, temperature_high_limit=25):
 		self._temperature_humidity_sensor = EasySensirion.SensirionSensor()
-		self._peltier_DC_power_supply = ElectroAutomatikGmbHPowerSupply('/dev/ttyACM3')
+		
+		list_of_Elektro_Automatik_devices_connected = ElectroAutomatikGmbHPy.find_elektro_automatik_devices()
+		if len(list_of_Elektro_Automatik_devices_connected) == 1:
+			self._peltier_DC_power_supply = ElectroAutomatikGmbHPowerSupply(list_of_Elektro_Automatik_devices_connected[0]['port'])
+		else:
+			raise RuntimeError(f'Cannot autodetect the Elektro-Automatik power source because eiter it is not connected to the computer or there is more than one Elektro-Automatik device connected.')
 		
 		# Threading locks ---
 		self._temperature_humidity_sensor_lock = threading.RLock()
