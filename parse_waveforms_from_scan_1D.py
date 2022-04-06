@@ -65,10 +65,27 @@ def generate_column_with_distances(df):
 	)
 	return distances_df.set_index('n_position')
 
-def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dict: dict = None):
+def human_readable(num, suffix="B"):
+	# https://stackoverflow.com/a/1094933/8849755
+	for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
+		if abs(num) < 1024.0:
+			return f"{num:3.1f} {unit}{suffix}"
+		num /= 1024.0
+	return f"{num:.1f} Yi{suffix}"
+
+def script_core(directory: Path, delete_waveform_file_if_it_is_bigger_than_bytes: float=0, silent: bool = True, telegram_reporter_data_dict: dict = None):
 	"""
 	Parameters
 	----------
+	directory: Path
+		Path to directory of measurement to which apply this script.
+	delete_waveform_file_if_it_is_bigger_than_bytes: float, default 0
+		If the file that contains the measured waveforms is larger than
+		this number, in bytes, it will be deleted. Otherwise, nothing
+		is done. Default value is `0` so it will delete the file no matter
+		its size.
+	silent: bool, default True
+		If `False` messages are print showing the progress.
 	telegram_reporter_data_dict
 		A dictionary of the form
 		```
@@ -78,6 +95,8 @@ def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dic
 	"""
 	if not isinstance(silent, bool):
 		raise ValueError(f'`silent` must be of type {repr(type(True))}, received object of type {repr(type(silent))}.')
+	if not isinstance(delete_waveform_file_if_it_is_bigger_than_bytes, (int, float)):
+		raise TypeError(f'`delete_waveform_file_if_it_is_bigger_than_bytes` must be a float number, received object of type {type(delete_waveform_file_if_it_is_bigger_than_bytes)}.')
 	
 	Quique = Bureaucrat( # Quique is the friendly alias to the name Enrique (at least in Argentina).
 		directory,
@@ -97,7 +116,8 @@ def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dic
 	
 	TEMPORARY_DATABASE_WHILE_PROCESSING_PATH = Quique.processed_data_dir_path/Path('data.sqlite')
 	sqlite3_connection_temporary_database = sqlite3.connect(TEMPORARY_DATABASE_WHILE_PROCESSING_PATH)
-	sqlite3_connection_waveforms = sqlite3.connect(Quique.processed_by_script_dir_path('scan_1D.py')/Path('waveforms.sqlite'))
+	WAVEFORMS_DATABASE_PATH = Quique.processed_by_script_dir_path('scan_1D.py')/Path('waveforms.sqlite')
+	sqlite3_connection_waveforms = sqlite3.connect(WAVEFORMS_DATABASE_PATH)
 	
 	if telegram_reporter_data_dict is not None:
 		from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
@@ -192,6 +212,13 @@ def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dic
 				
 		if not silent:
 			print('Finished processing!')
+		
+		if WAVEFORMS_DATABASE_PATH.stat().st_size >= delete_waveform_file_if_it_is_bigger_than_bytes:
+			if not silent:
+				print(f'Deleting the waveforms database file which has a size of {human_readable(WAVEFORMS_DATABASE_PATH.stat().st_size)}')
+			with open(WAVEFORMS_DATABASE_PATH.parent/Path('README.md'), 'a') as ofile:
+				print(f'In this directory there was a file `{WAVEFORMS_DATABASE_PATH.parts[-1]}` with all the waveforms. It was deleted after parsing all the waveforms (see results in "{Quique.processed_data_dir_path}") because its size was too big ({human_readable(WAVEFORMS_DATABASE_PATH.stat().st_size)}).', file=ofile)
+			WAVEFORMS_DATABASE_PATH.unlink()
 		
 	return Quique.measurement_base_path
 
