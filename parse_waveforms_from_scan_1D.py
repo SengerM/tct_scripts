@@ -2,10 +2,11 @@ import numpy as np
 import pandas
 from pathlib import Path
 from bureaucrat.Bureaucrat import Bureaucrat # https://github.com/SengerM/bureaucrat
-import plotly.express as px
+import plotly.graph_objects as go
 from signals.PeakSignal import PeakSignal, draw_in_plotly
 import sqlite3
 from contextlib import ExitStack # https://stackoverflow.com/a/34798330/8849755
+import warnings
 
 TIMES_AT = [10,20,30,40,50,60,70,80,90]
 
@@ -21,8 +22,8 @@ def draw_times_at(fig, signal):
 		80: 'star-triangle-up',
 		90: 'star-triangle-down',
 	}
-	for pp in TIMES_AT:
-		try:
+	try:
+		for pp in TIMES_AT:
 			fig.add_trace(
 				go.Scatter(
 					x = [signal.find_time_at_rising_edge(pp)], 
@@ -40,10 +41,10 @@ def draw_times_at(fig, signal):
 					),
 				)
 			)
-		except KeyboardInterrupt:
-			raise KeyboardInterrupt
-		except:
-			pass
+	except KeyboardInterrupt:
+		raise KeyboardInterrupt
+	except Exception as e:
+		warnings.warn(f'Cannot execute `draw_times_at`, reason: {e}')
 
 def calculate_1D_scan_distance_from_list_of_positions(positions):
 	"""positions: List of positions, e.g. [(1, 4, 2), (2, 5, 2), (3, 7, 2), (4, 9, 2)].
@@ -161,6 +162,7 @@ def script_core(directory: Path, silent: bool = True, telegram_reporter_data_dic
 							xaxis_title = "Time (s)",
 							yaxis_title = "Amplitude (V)",
 						)
+						draw_times_at(fig=fig, signal=signal)
 						CONTROL_PLOTS_FOR_SIGNAL_PROCESSING_DIR_PATH = Quique.processed_data_dir_path/Path('plots with a random selection of the waveforms')
 						CONTROL_PLOTS_FOR_SIGNAL_PROCESSING_DIR_PATH.mkdir(exist_ok=True)
 						fig.write_html(
