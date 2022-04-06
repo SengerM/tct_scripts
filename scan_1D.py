@@ -15,7 +15,7 @@ import sqlite3
 def post_process(measurement_base_path: Path, silent=True):
 	if not silent:
 		print(f'Launching post-processing of {measurement_base_path.parts[-1]}...')
-	parse_waveforms(measurement_base_path, silent)
+	parse_waveforms(measurement_base_path, silent=silent)
 	if not silent:
 		print(f'Plotting {measurement_base_path.parts[-1]}...')
 	plot_measurement(measurement_base_path)
@@ -132,11 +132,11 @@ DEVICE_CENTER = {
 	'y': 1.0010644531250001e-3, 
 	'z': 71.41140625e-3
 }
-SCAN_STEP = 11e-6 # meters
+SCAN_STEP = 1e-6 # meters
 SCAN_LENGTH = 270e-6 # meters
 SCAN_ANGLE_DEG = 0 # deg
 LASER_DAC = 630
-N_TRIGGERS_PER_POSITION = 33
+N_TRIGGERS_PER_POSITION = 333
 
 if __name__ == '__main__':
 	import numpy as np
@@ -154,7 +154,7 @@ if __name__ == '__main__':
 	measurement_base_path = script_core(
 		measurement_name = input('Measurement name? ').replace(' ', '_'),
 		the_setup = the_setup,
-		bias_voltage = 555,
+		bias_voltage = 222,
 		laser_DAC = LASER_DAC,
 		positions = positions,
 		n_triggers = N_TRIGGERS_PER_POSITION,
