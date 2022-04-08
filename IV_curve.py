@@ -8,6 +8,8 @@ import datetime
 from utils import DataFrameDumper
 from grafica.plotly_utils.utils import line
 import tct_scripts_config
+from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
+import my_telegram_bots
 
 def script_core(
 	directory, # Where to store the measured data. A new directory will be created.
@@ -24,65 +26,72 @@ def script_core(
 		variables = locals(),
 	)
 	
+	reporter = TelegramReporter(
+		telegram_token = my_telegram_bots.robobot.token, 
+		telegram_chat_id = my_telegram_bots.chat_ids['Robobot TCT setup'],
+	)
+	
 	with bureaucrat.verify_no_errors_context():
-		the_setup.laser_status = 'off' # Just in case, make sure the laser is off.
-		current_current_compliance = the_setup.current_compliance
-		try:
-			the_setup.current_compliance = current_compliance_amperes
-			the_setup.bias_output_status = 'on'
-			measured_data_df = pandas.DataFrame(columns = {'n_voltage','n_trigger','When','Bias voltage (V)','Bias current (A)','Temperature (°C)','Humidity (%RH)'})
-			measured_data_df_dumper = DataFrameDumper(
-				bureaucrat.processed_data_dir_path/Path('measured_data.fd'),
-				measured_data_df,
-			)
-			for n_voltage, v in enumerate(voltages):
-				the_setup.bias_voltage = v
-				sleep(time_after_changing_voltage)
-				for n_trigger in range(n_triggers):
-					print(f'Measuring n_voltage={n_voltage}/{len(voltages)-1} n_trigger={n_trigger}/{n_triggers-1}')
-					sleep(time_between_each_measurement)
-					measured_data_df = measured_data_df.append(
-						{
-							'n_voltage': n_voltage,
-							'n_trigger': n_trigger,
-							'When': datetime.datetime.now(),
-							'Bias voltage (V)': the_setup.bias_voltage,
-							'Bias current (A)': the_setup.bias_current,
-							'Temperature (°C)': the_setup.temperature,
-							'Humidity (%RH)': the_setup.humidity,
-						},
-						ignore_index = True,
-					)
-				measured_data_df = measured_data_df_dumper.dump_to_disk(measured_data_df)
-			measured_data_df_dumper.end(measured_data_df)
-			measured_data_df = pandas.read_feather(measured_data_df_dumper.file_path)
-			mean_measured_data_df = measured_data_df.groupby(by='n_voltage').mean()
-			mean_measured_data_df['Bias current std (A)'] = measured_data_df.groupby(by='n_voltage').std()['Bias current (A)']
-			mean_measured_data_df['Bias current (A)'] *= -1 # So the logarithmic plot don't fails.
-			mean_measured_data_df['Bias voltage (V)'] *= -1 # So the curve is in the positive quadrant.
-			fig = line(
-				data_frame = mean_measured_data_df,
-				x = 'Bias voltage (V)',
-				y = 'Bias current (A)',
-				error_y = 'Bias current std (A)',
-				error_y_mode = 'band',
-				title = f'IV curve<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
-				markers = '.',
-			)
-			fig.write_html(str(bureaucrat.processed_data_dir_path/Path(f'iv_curve_lin_scale.html')), include_plotlyjs='cdn')
-			fig.update_yaxes(type='log')
-			fig.write_html(str(bureaucrat.processed_data_dir_path/Path(f'iv_curve_log_scale.html')), include_plotlyjs='cdn')
-		except Exception as e:
-			raise e
-		finally:
-			the_setup.current_compliance = current_current_compliance
+		with reporter.report_for_loop(len(voltages)*n_triggers, f'{bureaucrat.measurement_name}') as reporter:
+			the_setup.laser_status = 'off' # Just in case, make sure the laser is off.
+			current_current_compliance = the_setup.current_compliance
+			try:
+				the_setup.current_compliance = current_compliance_amperes
+				the_setup.bias_output_status = 'on'
+				measured_data_df = pandas.DataFrame(columns = {'n_voltage','n_trigger','When','Bias voltage (V)','Bias current (A)','Temperature (°C)','Humidity (%RH)'})
+				measured_data_df_dumper = DataFrameDumper(
+					bureaucrat.processed_data_dir_path/Path('measured_data.fd'),
+					measured_data_df,
+				)
+				for n_voltage, v in enumerate(voltages):
+					the_setup.bias_voltage = v
+					sleep(time_after_changing_voltage)
+					for n_trigger in range(n_triggers):
+						print(f'Measuring n_voltage={n_voltage}/{len(voltages)-1} n_trigger={n_trigger}/{n_triggers-1}')
+						sleep(time_between_each_measurement)
+						measured_data_df = measured_data_df.append(
+							{
+								'n_voltage': n_voltage,
+								'n_trigger': n_trigger,
+								'When': datetime.datetime.now(),
+								'Bias voltage (V)': the_setup.bias_voltage,
+								'Bias current (A)': the_setup.bias_current,
+								'Temperature (°C)': the_setup.temperature,
+								'Humidity (%RH)': the_setup.humidity,
+							},
+							ignore_index = True,
+						)
+						reporter.update(1)
+					measured_data_df = measured_data_df_dumper.dump_to_disk(measured_data_df)
+				measured_data_df_dumper.end(measured_data_df)
+				measured_data_df = pandas.read_feather(measured_data_df_dumper.file_path)
+				mean_measured_data_df = measured_data_df.groupby(by='n_voltage').mean()
+				mean_measured_data_df['Bias current std (A)'] = measured_data_df.groupby(by='n_voltage').std()['Bias current (A)']
+				mean_measured_data_df['Bias current (A)'] *= -1 # So the logarithmic plot don't fails.
+				mean_measured_data_df['Bias voltage (V)'] *= -1 # So the curve is in the positive quadrant.
+				fig = line(
+					data_frame = mean_measured_data_df,
+					x = 'Bias voltage (V)',
+					y = 'Bias current (A)',
+					error_y = 'Bias current std (A)',
+					error_y_mode = 'band',
+					title = f'IV curve<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
+					markers = '.',
+				)
+				fig.write_html(str(bureaucrat.processed_data_dir_path/Path(f'iv_curve_lin_scale.html')), include_plotlyjs='cdn')
+				fig.update_yaxes(type='log')
+				fig.write_html(str(bureaucrat.processed_data_dir_path/Path(f'iv_curve_log_scale.html')), include_plotlyjs='cdn')
+			except Exception as e:
+				raise e
+			finally:
+				the_setup.current_compliance = current_current_compliance
 	
 if __name__ == '__main__':
 	import numpy as np
 	
-	VOLTAGES = np.linspace(0,550,20)
+	VOLTAGES = np.linspace(0,800,800)
 	
-	current_compliance = 3e-6
+	current_compliance = 11e-6
 	
 	script_core(
 		directory = tct_scripts_config.DATA_STORAGE_DIRECTORY_PATH/Path(input('Measurement name? ').replace(' ','_')),
