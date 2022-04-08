@@ -22,9 +22,9 @@ class TheSetup:
 		# ~ self._drs4_evaluation_board = pydrs.get_board(0)
 		
 		stages_coordinates = {
-			'XIMC_XIMC_Motor_Controller_00003A48': 'x',
-			'XIMC_XIMC_Motor_Controller_00003A57': 'y',
-			'XIMC_XIMC_Motor_Controller_000038CE': 'z',
+			'00003A48': 'x',
+			'00003A57': 'y',
+			'000038CE': 'z',
 		}
 		ports_dict = map_coordinates_to_serial_ports(stages_coordinates)
 		self._tct = PyticularsTCT.TCT(x_stage_port=ports_dict['x'], y_stage_port=ports_dict['y'], z_stage_port=ports_dict['z'])
