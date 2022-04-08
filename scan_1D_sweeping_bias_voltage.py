@@ -1,5 +1,5 @@
 import numpy as np
-from scan_1D import script_core as scan_1D, DEVICE_CENTER, SCAN_STEP, SCAN_LENGTH, SCAN_ANGLE_DEG, post_process
+from scan_1D import script_core as scan_1D, DEVICE_CENTER, SCAN_STEP, SCAN_LENGTH, SCAN_ANGLE_DEG, post_process, LASER_DAC, N_TRIGGERS_PER_POSITION
 from TheSetup import TheSetup
 import pandas
 from pathlib import Path
@@ -34,6 +34,7 @@ if 'preview' in Rick.measurement_name.lower():
 	SCAN_STEP = 11e-6
 	BIAS_VOLTAGES = [float(input(f'Bias voltage for preview? '))]
 	N_TRIGGERS_PER_POSITION = 4
+	LASER_DAC = 0
 
 if input(f'I will use BIAS_VOLTAGES = {BIAS_VOLTAGES} (in volts), is this correct? (YeS) ') != 'YeS':
 	print(f'Your answer was not "YeS", I will exit.')
