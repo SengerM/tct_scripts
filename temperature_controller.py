@@ -251,13 +251,16 @@ def run_as_daemon():
 	print("Temperature controller ready to start working!")
 	daemon.requestLoop()
 
+def new_owner_thread_call(proxy):
+	# https://github.com/irmen/Pyro5/blob/e7fa12954611e6504cbb443fdd1aeee65b35bb6b/examples/threadproxysharing/client.py
+	proxy._pyroClaimOwnership()
+
 class TemperatureControllerDisplay(tk.Frame):
-	def __init__(self, parent, temperature_controller:TemperatureController, temperature_controller_lock, *args, **kwargs):
+	def __init__(self, parent, controller_pyro_server_name:str, *args, **kwargs):
 		tk.Frame.__init__(self, parent, *args, **kwargs)
 		self.parent = parent
 		self._auto_update_interval = 1 # seconds
-		self._temperature_controller = temperature_controller
-		self._temperature_controller_lock = temperature_controller_lock
+		self._temperature_controller = Pyro5.api.Proxy(f'PYRONAME:{controller_pyro_server_name}')
 		
 		self.list_of_parameters = [
 			'Set temperature (°C)',
@@ -285,10 +288,9 @@ class TemperatureControllerDisplay(tk.Frame):
 		self.automatic_display_update('on')
 	
 	def update_display(self):
-		with self._temperature_controller_lock:
-			self._temperature_controller._pyroClaimOwnership()
-			for parameter in self.list_of_parameters:
-				self.tk_labels[parameter].config(text = f'{self.getters_dict[parameter]():.2f}')
+		new_owner_thread_call(self._temperature_controller)
+		for parameter in self.list_of_parameters:
+			self.tk_labels[parameter].config(text = f'{self.getters_dict[parameter]():.2f}')
 	
 	def automatic_display_update(self, status):
 		if not isinstance(status, str):
@@ -311,6 +313,31 @@ class TemperatureControllerDisplay(tk.Frame):
 		
 		self._automatic_display_update_thread = threading.Thread(target = thread_function)
 		self._automatic_display_update_thread.start()
+
+class TemperatureControllerConfigurator(tk.Frame):
+	def __init__(self, parent, controller_pyro_server_name:str, *args, **kwargs):
+		tk.Frame.__init__(self, parent, *args, **kwargs)
+		self.parent = parent
+		self._temperature_controller = Pyro5.api.Proxy(f'PYRONAME:{controller_pyro_server_name}')
+		
+		frame = tk.Frame(self)
+		frame.grid(pady=10, padx=10)
+		tk.Label(frame, text = f'Temperature set point (°C)').grid()
+		self.temperature_setpoint_entry = tk.Entry(frame, font=tkFont.nametofont("TkDefaultFont"))
+		self.temperature_setpoint_entry.grid(row=0,column=1,padx=10)
+		
+		def set_temperature_pressing_enter_function(event=None):
+			try:
+				temperature = float(self.temperature_setpoint_entry.get())
+			except ValueError:
+				tk.messagebox.showerror(message = f'Check your input. Voltage must be a float number, received "{self.temperature_setpoint_entry.get()}".')
+				return
+			new_owner_thread_call(self._temperature_controller)
+			self._temperature_controller.temperature_setpoint = temperature
+			print('Temperature has been changed!')
+		
+		self.temperature_setpoint_entry.bind('<Return>', set_temperature_pressing_enter_function)
+		self.temperature_setpoint_entry.bind('<KP_Enter>', set_temperature_pressing_enter_function)
 
 if __name__ == "__main__":
 	import argparse
@@ -335,7 +362,6 @@ if __name__ == "__main__":
 		try:
 			temperature_controller = Pyro5.api.Proxy('PYRONAME:temperature_controller')
 			temperature_controller._pyroBind()
-			temperature_controller_lock = threading.RLock()
 		except Pyro5.errors.CommunicationError:
 			print(f'Cannot find an instance of the temperature controller running in the background as a daemon. Before running the graphical interface, you should run a daemon instance with the option `--daemon`.')
 			exit()
@@ -349,10 +375,14 @@ if __name__ == "__main__":
 		tk.Label(main_frame, text = 'TCT temperature controller', font=("Calibri",22)).grid()
 		display = TemperatureControllerDisplay(
 			main_frame, 
-			temperature_controller = temperature_controller, 
-			temperature_controller_lock = temperature_controller_lock
+			controller_pyro_server_name = 'temperature_controller', 
 		)
 		display.grid(pady=20)
+		configurator = TemperatureControllerConfigurator(
+			main_frame, 
+			controller_pyro_server_name = 'temperature_controller', 
+		)
+		configurator.grid(pady=20)
 		
 		def on_closing():
 			display.automatic_display_update('off')
