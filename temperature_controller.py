@@ -6,9 +6,15 @@ from time import sleep
 import atexit
 import threading
 import Pyro5.api
+import Pyro5.errors
 from progressreporting.TelegramProgressReporter import TelegramReporter # https://github.com/SengerM/progressreporting
 import my_telegram_bots
 import datetime
+import tkinter as tk
+import tkinter.messagebox
+import tkinter.font as tkFont
+import threading
+import time
 
 THREADS_SLEEP_SECONDS = 1
 
@@ -237,6 +243,7 @@ SERVER_NAME = 'temperature_controller'
 
 def run_as_daemon():
 	# https://pyro5.readthedocs.io/en/latest/intro.html#with-a-name-server
+	print('Starting daemon...')
 	daemon = Pyro5.server.Daemon()
 	ns = Pyro5.api.locate_ns()
 	uri = daemon.register(TemperatureController)
@@ -244,9 +251,112 @@ def run_as_daemon():
 	print("Temperature controller ready to start working!")
 	daemon.requestLoop()
 
+class TemperatureControllerDisplay(tk.Frame):
+	def __init__(self, parent, temperature_controller:TemperatureController, temperature_controller_lock, *args, **kwargs):
+		tk.Frame.__init__(self, parent, *args, **kwargs)
+		self.parent = parent
+		self._auto_update_interval = 1 # seconds
+		self._temperature_controller = temperature_controller
+		self._temperature_controller_lock = temperature_controller_lock
+		
+		self.list_of_parameters = [
+			'Set temperature (°C)',
+			'Measured temperature (°C)',
+			'Measured humidity (%RH)',
+			'Peltier voltage (V)',
+			'Peltier current (A)'
+		]
+		self.getters_dict = {
+			'Set temperature (°C)': lambda: self._temperature_controller.temperature_setpoint,
+			'Measured temperature (°C)': lambda: self._temperature_controller.temperature,
+			'Measured humidity (%RH)': lambda: self._temperature_controller.humidity,
+			'Peltier voltage (V)': lambda: self._temperature_controller.peltier_measured_voltage,
+			'Peltier current (A)': lambda: self._temperature_controller.peltier_measured_current,
+		}
+		
+		self.tk_labels = {}
+		for param in self.list_of_parameters:
+			frame = tk.Frame(self)
+			frame.grid(pady=10)
+			tk.Label(frame, text = f'{param}: ').grid()
+			self.tk_labels[param] = tk.Label(frame, text = '?')
+			self.tk_labels[param].grid()
+		
+		self.automatic_display_update('on')
+	
+	def update_display(self):
+		with self._temperature_controller_lock:
+			self._temperature_controller._pyroClaimOwnership()
+			for parameter in self.list_of_parameters:
+				self.tk_labels[parameter].config(text = f'{self.getters_dict[parameter]():.2f}')
+	
+	def automatic_display_update(self, status):
+		if not isinstance(status, str):
+			raise TypeError(f'<status> must be a string, received {status} of type {type(status)}.')
+		if status.lower() not in ['on','off']:
+			raise ValueError(f'<status> must be either "on" or "off", received {status}.')
+		self._automatic_display_update_status = status
+		if hasattr(self, '_automatic_display_update_is_running') and self._automatic_display_update_is_running == 'yes':
+			return
+		
+		def thread_function():
+			self._automatic_display_update_is_running = 'yes'
+			while self._automatic_display_update_status == 'on':
+				try:
+					self.update_display()
+				except Exception as e:
+					print(f'Cannot update display, reason: {repr(e)}')
+				time.sleep(self._auto_update_interval)
+			self._automatic_display_update_is_running == 'no'
+		
+		self._automatic_display_update_thread = threading.Thread(target = thread_function)
+		self._automatic_display_update_thread.start()
 
 if __name__ == "__main__":
-	try:
-		run_as_daemon()
-	except Pyro5.errors.NamingError:
-		print(f'Before running this you have to open a new terminal and run `python3 -m Pyro5.nameserver`, and keep it running. See *https://pyro5.readthedocs.io/en/latest/intro.html#with-a-name-server* for more info.')
+	import argparse
+	
+	parser = argparse.ArgumentParser()
+	parser.add_argument(
+		'--daemon',
+		help = 'Use this option to run the daemon.',
+		dest = 'daemon',
+		action = 'store_true'
+	)
+	
+	args = parser.parse_args()
+	if args.daemon == True:
+		print('Running in daemon mode...')
+		try:
+			run_as_daemon()
+		except Pyro5.errors.NamingError:
+			print(f'Before running this you have to open a new terminal and run `python3 -m Pyro5.nameserver`, and keep it running. See *https://pyro5.readthedocs.io/en/latest/intro.html#with-a-name-server* for more info.')
+	else:
+		print('Running the graphical interface mode...')
+		try:
+			temperature_controller = Pyro5.api.Proxy('PYRONAME:temperature_controller')
+			temperature_controller._pyroBind()
+			temperature_controller_lock = threading.RLock()
+		except Pyro5.errors.CommunicationError:
+			print(f'Cannot find an instance of the temperature controller running in the background as a daemon. Before running the graphical interface, you should run a daemon instance with the option `--daemon`.')
+			exit()
+		
+		root = tk.Tk()
+		root.title('TCT temperature controller')
+		default_font = tkFont.nametofont("TkDefaultFont")
+		default_font.configure(size=16)
+		main_frame = tk.Frame(root)
+		main_frame.grid(padx=20,pady=20)
+		tk.Label(main_frame, text = 'TCT temperature controller', font=("Calibri",22)).grid()
+		display = TemperatureControllerDisplay(
+			main_frame, 
+			temperature_controller = temperature_controller, 
+			temperature_controller_lock = temperature_controller_lock
+		)
+		display.grid(pady=20)
+		
+		def on_closing():
+			display.automatic_display_update('off')
+			root.destroy()
+		root.protocol("WM_DELETE_WINDOW", on_closing)
+		
+		root.mainloop()
