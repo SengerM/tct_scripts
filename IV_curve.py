@@ -12,14 +12,14 @@ from progressreporting.TelegramProgressReporter import TelegramReporter # https:
 import my_telegram_bots
 
 def script_core(
-	directory, # Where to store the measured data. A new directory will be created.
-	voltages: list, # List of float numbers specifying the voltage points to measure.
-	current_compliance_amperes: float, # Compliance to set to the output, in amperes.
-	n_triggers: int, # Number of measurements to do at each voltage.
-	time_between_each_measurement: float, #Number of seconds between two consecutive readings.
-	time_after_changing_voltage: float, # Time to wait after voltage has been changed. To reduce self-heating effects, make this time bigger.
-	the_setup,
-):
+		directory, # Where to store the measured data. A new directory will be created.
+		voltages: list, # List of float numbers specifying the voltage points to measure.
+		current_compliance_amperes: float, # Compliance to set to the output, in amperes.
+		n_triggers: int, # Number of measurements to do at each voltage.
+		time_between_each_measurement: float, #Number of seconds between two consecutive readings.
+		time_after_changing_voltage: float, # Time to wait after voltage has been changed. To reduce self-heating effects, make this time bigger.
+		the_setup,
+	):
 	bureaucrat = Bureaucrat(
 		directory,
 		new_measurement = True,
@@ -77,6 +77,7 @@ def script_core(
 					error_y_mode = 'band',
 					title = f'IV curve<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
 					markers = '.',
+					hover_data = ['When','n_trigger','Temperature (°C)'],
 				)
 				fig.write_html(str(bureaucrat.processed_data_dir_path/Path(f'iv_curve_lin_scale.html')), include_plotlyjs='cdn')
 				fig.update_yaxes(type='log')
@@ -89,9 +90,9 @@ def script_core(
 if __name__ == '__main__':
 	import numpy as np
 	
-	VOLTAGES = np.linspace(0,800,800)
+	VOLTAGES = np.linspace(0,400,400)
 	
-	current_compliance = 11e-6
+	current_compliance = 3e-6
 	
 	script_core(
 		directory = tct_scripts_config.DATA_STORAGE_DIRECTORY_PATH/Path(input('Measurement name? ').replace(' ','_')),
