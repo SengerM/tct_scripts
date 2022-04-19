@@ -75,36 +75,42 @@ def script_core(directory: Path):
 		for column in averaged_by_position_df:
 			if column in GROUP_BY:
 				continue
-			fig = line(
-				data_frame = averaged_by_position_df,
-				x = 'Distance (m)',
-				y = column,
-				color = 'n_channel',
-				line_dash = 'n_pulse',
-				symbol = 'n_pulse',
-				markers = True,
-				title = f'{column}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
-			)
-			fig.write_html(str(mean_std_plots_dir_Path/Path(f'{column}.html')), include_plotlyjs='cdn')
+			try:
+				fig = line(
+					data_frame = averaged_by_position_df,
+					x = 'Distance (m)',
+					y = column,
+					color = 'n_channel',
+					line_dash = 'n_pulse',
+					symbol = 'n_pulse',
+					markers = True,
+					title = f'{column}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
+				)
+				fig.write_html(str(mean_std_plots_dir_Path/Path(f'{column}.html')), include_plotlyjs='cdn')
+			except ValueError as e:
+				warnings.warn(f'Cannot plot {repr(column)}, reason: {e}')
 	
 	error_band_plots_dir_Path = bureaucrat.processed_data_dir_path/Path('error_band_plots')
 	error_band_plots_dir_Path.mkdir(parents=True, exist_ok=True)
 	for column in data_df:
 		if column in GROUP_BY + ['When']:
 			continue
-		fig = line(
-			data_frame = averaged_by_position_df,
-			x = 'Distance (m)',
-			y = f'{column} median',
-			error_y = f'{column} MAD_std',
-			error_y_mode = 'band',
-			color = 'n_channel',
-			line_dash = 'n_pulse',
-			symbol = 'n_pulse',
-			markers = True,
-			title = f'{column}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
-		)
-		fig.write_html(str(error_band_plots_dir_Path/Path(f'{column}.html')), include_plotlyjs='cdn')
+		try:
+			fig = line(
+				data_frame = averaged_by_position_df,
+				x = 'Distance (m)',
+				y = f'{column} median',
+				error_y = f'{column} MAD_std',
+				error_y_mode = 'band',
+				color = 'n_channel',
+				line_dash = 'n_pulse',
+				symbol = 'n_pulse',
+				markers = True,
+				title = f'{column}<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
+			)
+			fig.write_html(str(error_band_plots_dir_Path/Path(f'{column}.html')), include_plotlyjs='cdn')
+		except ValueError as e:
+			warnings.warn(f'Cannot plot {repr(column)}, reason: {e}')
 		
 	n_channels = sorted(set(data_df['n_channel'])) 
 	for idx,ch_A in enumerate(n_channels):
