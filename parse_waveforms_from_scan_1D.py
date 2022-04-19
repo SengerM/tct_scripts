@@ -129,7 +129,7 @@ def script_core(directory: Path, delete_waveform_file_if_it_is_bigger_than_bytes
 			print(f'Reading the total number of waveforms to process...')
 		sqlite3_cursor_waveforms = sqlite3_connection_waveforms.cursor()
 		sqlite3_cursor_waveforms.execute('SELECT max(n_waveform) from waveforms')
-		number_of_waveforms_to_process = sqlite3_cursor_waveforms.fetchone()[0]
+		number_of_waveforms_to_process = sqlite3_cursor_waveforms.fetchone()[0]+1
 		
 		NUMBER_OF_WAVEFORMS_IN_EACH_BATCH = 3333 # This depends on the amount of memory you want to use...
 		number_of_batches = number_of_waveforms_to_process//NUMBER_OF_WAVEFORMS_IN_EACH_BATCH + 1 if number_of_waveforms_to_process%NUMBER_OF_WAVEFORMS_IN_EACH_BATCH != 0 else 0
@@ -137,7 +137,7 @@ def script_core(directory: Path, delete_waveform_file_if_it_is_bigger_than_bytes
 		if not silent:
 			print(f'A total of {number_of_waveforms_to_process} waveforms will be processed in {number_of_batches} batches.')
 		
-		with telegram_reporter.report_for_loop(number_of_waveforms_to_process-1, f'Waveforms parsing for measurement {Quique.measurement_name}') if telegram_reporter_data_dict is not None else ExitStack() as telegram_reporter:
+		with telegram_reporter.report_for_loop(number_of_waveforms_to_process, f'Waveforms parsing for measurement {Quique.measurement_name}') if telegram_reporter_data_dict is not None else ExitStack() as telegram_reporter:
 			highest_n_waveform_already_processed = -1
 			for n_batch in range(number_of_batches):
 				if not silent:
@@ -191,14 +191,15 @@ def script_core(directory: Path, delete_waveform_file_if_it_is_bigger_than_bytes
 						)
 					
 					highest_n_waveform_already_processed = waveforms_df['n_waveform'].max()
-					if telegram_reporter_data_dict is not None:
-						telegram_reporter.update(1)
 					
 					if len(data_df.index) > 10e3 or n_waveform == number_of_waveforms_to_process-1:
 						if not silent:
 							print('Saving parsed data...')
 						data_df.to_sql('parsed_data', sqlite3_connection_temporary_database, index=False, if_exists='append')
 						data_df = pandas.DataFrame()
+					
+					if telegram_reporter_data_dict is not None:
+						telegram_reporter.update(1)
 		
 		# Add the column `Distance (m)` to the data so it does not has to be calculated later on...
 		if not silent:
