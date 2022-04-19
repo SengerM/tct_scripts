@@ -77,7 +77,7 @@ def script_core(
 					error_y_mode = 'band',
 					title = f'IV curve<br><sup>Measurement: {bureaucrat.measurement_name}</sup>',
 					markers = '.',
-					hover_data = ['When','n_trigger','Temperature (°C)'],
+					hover_data = ['n_trigger','Temperature (°C)'],
 				)
 				fig.write_html(str(bureaucrat.processed_data_dir_path/Path(f'iv_curve_lin_scale.html')), include_plotlyjs='cdn')
 				fig.update_yaxes(type='log')
