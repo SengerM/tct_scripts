@@ -1,6 +1,6 @@
 # tct_scripts
 
-**DEPRECATED**, please refer to the newer version [here](https://github.com/SengerM/tct_setup).
+**DEPRECATED**, [link to new version](https://github.com/SengerM/tct_setup).
 
 Scripts related to [the TCT setup at UZH](https://msenger.web.cern.ch/tct-setup-at-uzh/). The whole setup is wrapped by the `TheSetup` class, the scripts that actually perform measurements import this class and use it to perform spacial scans, laser intensity scans, etc.
 
